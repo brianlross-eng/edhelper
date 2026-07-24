@@ -92,8 +92,8 @@ export class JournalWatcher extends EventEmitter {
       for (const line of lines) {
         const ev = parseJournalLine(line);
         if (ev) {
-          this.emit('event', ev);
           this.state = reduceShipState(this.state, ev);
+          this.emit('event', ev);
           changed = true;
         }
       }
