@@ -29,3 +29,40 @@ describe('WaypointTracker (exploration instance)', () => {
     expect(t.get()!.route.waypoints[2].bodies).toHaveLength(2); // payload preserved through generics
   });
 });
+
+describe('eventType option', () => {
+  type SimpleWaypoint = { system: string; jumps: number };
+  type SimpleRoute = { waypoints: SimpleWaypoint[] };
+  const route: SimpleRoute = {
+    waypoints: [
+      { system: 'Sol', jumps: 0 },
+      { system: 'Alpha', jumps: 1 },
+      { system: 'Beta', jumps: 1 },
+    ],
+  };
+
+  it('a CarrierJump tracker ignores FSDJump and advances on CarrierJump', () => {
+    const copied: string[] = [];
+    const t = new WaypointTracker<SimpleWaypoint, SimpleRoute>({
+      copy: (s) => copied.push(s),
+      eventType: 'CarrierJump',
+    });
+    t.start(route);
+    expect(copied).toEqual(['Alpha']);
+    t.onJournalEvent({ type: 'FSDJump', system: 'Alpha' });
+    expect(t.get()!.currentWaypoint).toBe(1); // unmoved
+    t.onJournalEvent({ type: 'CarrierJump', system: 'Alpha' });
+    expect(t.get()!.currentWaypoint).toBe(2);
+    expect(copied).toEqual(['Alpha', 'Beta']);
+  });
+
+  it('defaults to FSDJump when eventType is omitted', () => {
+    const copied: string[] = [];
+    const t = new WaypointTracker<SimpleWaypoint, SimpleRoute>({ copy: (s) => copied.push(s) });
+    t.start(route);
+    t.onJournalEvent({ type: 'CarrierJump', system: 'Alpha' });
+    expect(t.get()!.currentWaypoint).toBe(1); // unmoved
+    t.onJournalEvent({ type: 'FSDJump', system: 'Alpha' });
+    expect(t.get()!.currentWaypoint).toBe(2);
+  });
+});
