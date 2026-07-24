@@ -2,10 +2,11 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import type { ShipState } from '@edhelper/engine';
-import type { ActiveRoute } from '../src/shared/ipc-types';
+import type { ActiveRoute, ActiveNeutronRoute } from '../src/shared/ipc-types';
 import { CockpitPanel } from '../src/renderer/src/components/CockpitPanel';
 import { RouteChecklist } from '../src/renderer/src/components/RouteChecklist';
 import { TradePlanner } from '../src/renderer/src/components/TradePlanner';
+import { NeutronPlotter } from '../src/renderer/src/components/NeutronPlotter';
 import { DataHealthFooter } from '../src/renderer/src/components/DataHealthFooter';
 
 afterEach(cleanup);
@@ -31,7 +32,7 @@ const ROUTE: ActiveRoute = {
 
 describe('CockpitPanel', () => {
   it('shows commander, location, and cargo from ship state', () => {
-    render(<CockpitPanel ship={SHIP} route={null} />);
+    render(<CockpitPanel ship={SHIP} route={null} neutron={null} />);
     expect(screen.getByText('CMDR Bross')).toBeTruthy();
     expect(screen.getByTestId('location').textContent).toContain('Sol · Abraham Lincoln');
     expect(screen.getByTestId('cargo').textContent).toContain('96 / 192 t');
@@ -39,20 +40,20 @@ describe('CockpitPanel', () => {
   });
 
   it('shows the next hop of the active route', () => {
-    render(<CockpitPanel ship={SHIP} route={ROUTE} />);
+    render(<CockpitPanel ship={SHIP} route={ROUTE} neutron={null} />);
     expect(screen.getByText(/Hop 2 of 2/).textContent).toBeTruthy();
     expect(screen.getByText(/Wolf \/ Gamma/)).toBeTruthy();
   });
 
   it('shows completion with actual vs expected profit', () => {
     const done: ActiveRoute = { ...ROUTE, currentHop: 2, hopStatus: ['done', 'done'], actualProfit: 149_000 };
-    render(<CockpitPanel ship={SHIP} route={done} />);
+    render(<CockpitPanel ship={SHIP} route={done} neutron={null} />);
     expect(screen.getByTestId('route-complete').textContent).toContain('149,000');
     expect(screen.getByTestId('route-complete').textContent).toContain('150,000');
   });
 
   it('degrades gracefully with no data', () => {
-    render(<CockpitPanel ship={null} route={null} />);
+    render(<CockpitPanel ship={null} route={null} neutron={null} />);
     expect(screen.getByText('No commander data')).toBeTruthy();
   });
 });
@@ -150,5 +151,60 @@ describe('DataHealthFooter', () => {
       />
     );
     expect(screen.getByTestId('engine-error').textContent).toContain('cannot open');
+  });
+});
+
+const NROUTE: ActiveNeutronRoute = {
+  currentWaypoint: 1,
+  waypointStatus: ['done', 'next', 'pending'],
+  copiedSystem: 'Jackson Sector NN-A b0',
+  route: {
+    totalJumps: 9,
+    totalDistanceLy: 400,
+    waypoints: [
+      { system: 'Lave', distanceJumped: 0, distanceLeft: 400, jumps: 0, neutronStar: false },
+      { system: 'Jackson Sector NN-A b0', distanceJumped: 250, distanceLeft: 150, jumps: 5, neutronStar: true },
+      { system: 'Colonia', distanceJumped: 150, distanceLeft: 0, jumps: 4, neutronStar: false },
+    ],
+  },
+};
+
+describe('NeutronPlotter', () => {
+  it('prefills from and jump range from the ship', () => {
+    render(
+      <NeutronPlotter
+        ship={{ ...SHIP, system: 'Lave', maxJumpRange: 28.4 }}
+        route={null}
+        onPlot={async () => ({ ok: false, error: 'x' })}
+        onStart={() => {}}
+        onClear={() => {}}
+        onAnchor={() => {}}
+      />
+    );
+    expect(screen.getByDisplayValue('Lave')).toBeTruthy();
+    expect(screen.getByDisplayValue('28.4')).toBeTruthy();
+    expect(screen.getByDisplayValue('60')).toBeTruthy(); // efficiency default
+  });
+
+  it('shows the waypoint checklist with statuses and copy anchors when active', () => {
+    let anchored = -1;
+    render(
+      <NeutronPlotter ship={SHIP} route={NROUTE} onPlot={async () => ({ ok: false, error: 'x' })} onStart={() => {}} onClear={() => {}} onAnchor={(i) => (anchored = i)} />
+    );
+    expect(screen.getByTestId('wp-0').textContent).toContain('✓');
+    expect(screen.getByTestId('wp-1').textContent).toContain('▶');
+    expect(screen.getByTestId('wp-1').textContent).toContain('NEUTRON');
+    expect(screen.getByTestId('copied').textContent).toContain('Jackson Sector NN-A b0');
+    fireEvent.click(screen.getAllByText('Copy')[2]);
+    expect(anchored).toBe(2);
+  });
+});
+
+describe('CockpitPanel neutron card', () => {
+  it('shows the active neutron route summary', () => {
+    render(<CockpitPanel ship={SHIP} route={null} neutron={NROUTE} />);
+    expect(screen.getByTestId('neutron-card').textContent).toContain('Waypoint 2 of 3');
+    expect(screen.getByTestId('neutron-card').textContent).toContain('Jackson Sector NN-A b0');
+    expect(screen.getByTestId('neutron-card').textContent).toContain('clipboard');
   });
 });

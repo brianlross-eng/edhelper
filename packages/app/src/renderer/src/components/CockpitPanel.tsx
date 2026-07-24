@@ -1,7 +1,7 @@
 import type { ShipState } from '@edhelper/engine';
-import type { ActiveRoute } from '../../../shared/ipc-types';
+import type { ActiveRoute, ActiveNeutronRoute } from '../../../shared/ipc-types';
 
-export function CockpitPanel({ ship, route }: { ship: ShipState | null; route: ActiveRoute | null }) {
+export function CockpitPanel({ ship, route, neutron }: { ship: ShipState | null; route: ActiveRoute | null; neutron: ActiveNeutronRoute | null }) {
   const cargoPct = ship?.cargoCapacity ? Math.min(100, ((ship.cargoUsed ?? 0) / ship.cargoCapacity) * 100) : 0;
   const nextHop = route && route.currentHop < route.route.hops.length ? route.route.hops[route.currentHop] : null;
   return (
@@ -40,6 +40,23 @@ export function CockpitPanel({ ship, route }: { ship: ShipState | null; route: A
           </div>
         )}
       </div>
+
+      {neutron && (
+        <div className="route-box" data-testid="neutron-card">
+          <div className="label" style={{ marginTop: 0 }}>NEUTRON ROUTE</div>
+          {neutron.currentWaypoint < neutron.route.waypoints.length ? (
+            <>
+              <div className="muted">
+                Waypoint {neutron.currentWaypoint + 1} of {neutron.route.waypoints.length}
+              </div>
+              <div className="next-hop">▶ {neutron.route.waypoints[neutron.currentWaypoint].system}</div>
+              <div className="muted">on clipboard — paste in galaxy map</div>
+            </>
+          ) : (
+            <div>Route complete · {neutron.route.totalJumps} jumps</div>
+          )}
+        </div>
+      )}
     </aside>
   );
 }
