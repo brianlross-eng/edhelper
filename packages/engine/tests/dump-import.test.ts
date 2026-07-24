@@ -103,4 +103,29 @@ describe('importDump', () => {
     expect((db.prepare('SELECT COUNT(*) AS n FROM systems').get() as any).n).toBe(2);
     db.close();
   });
+
+  it('imports stations of a repeated id64 under the first system row', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'edh-'));
+    const systems = [
+      { id64: 7, name: 'Dup', coords: { x: 0, y: 0, z: 0 },
+        stations: [{ id: 2001, name: 'First', type: 'Outpost', landingPads: { medium: 1 }, market: { commodities: [] } }] },
+      { id64: 7, name: 'Dup Again', coords: { x: 99, y: 0, z: 0 },
+        stations: [{ id: 2002, name: 'Second', type: 'Outpost', landingPads: { medium: 1 }, market: { commodities: [] } }] },
+    ];
+    const body = '[\n' + systems.map((s) => JSON.stringify(s)).join(',\n') + '\n]\n';
+    const dumpPath = join(dir, 'dup.json.gz');
+    writeFileSync(dumpPath, gzipSync(body));
+    const dbPath = join(dir, 'ed.db');
+
+    const stats = await importDump(dumpPath, dbPath);
+    expect(stats.systems).toBe(1);
+    expect(stats.duplicateSystems).toBe(1);
+    const db = openDatabase(dbPath);
+    const rows = db.prepare('SELECT s.name, sy.name AS system FROM stations s JOIN systems sy ON sy.id = s.system_id ORDER BY s.id').all() as any[];
+    expect(rows).toEqual([
+      { name: 'First', system: 'Dup' },
+      { name: 'Second', system: 'Dup' },
+    ]);
+    db.close();
+  });
 });
