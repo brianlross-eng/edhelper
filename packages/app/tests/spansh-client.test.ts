@@ -229,6 +229,32 @@ describe('plotFleetCarrier', () => {
     expect(route.totalDistanceLy).toBeGreaterThan(22000);
   });
 
+  it('surfaces inline submit errors and never polls', async () => {
+    const routes = carrierRoutes();
+    routes['/fleetcarrier/route'] = () => ({
+      status: 202,
+      body: { status: 'error', error: 'no route found' },
+    });
+    const { fn, calls } = fakeFetch(routes);
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    await expect(
+      client.plotFleetCarrier({ from: 'Sol', to: 'Colonia', capacity: 25000, mass: 25000, capacityUsed: 0 })
+    ).rejects.toThrow('no route found');
+    expect(calls.some((c) => c.url.includes('/results/'))).toBe(false);
+  });
+
+  it('resolves lowercase system names case-insensitively', async () => {
+    const { fn, calls } = fakeFetch(carrierRoutes());
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    await client.plotFleetCarrier({
+      from: 'sol', to: 'colonia', capacity: 25000, mass: 25000, capacityUsed: 0,
+    });
+    const submit = calls.find((c) => c.url.includes('/fleetcarrier/route'))!;
+    const form = new URLSearchParams(String(submit.init.body));
+    expect(form.get('source')).toBe('10477373803');
+    expect(form.getAll('destinations')).toEqual(['3238296097059']);
+  });
+
   it('rejects unknown system names before submitting', async () => {
     const { fn, calls } = fakeFetch(carrierRoutes());
     const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });

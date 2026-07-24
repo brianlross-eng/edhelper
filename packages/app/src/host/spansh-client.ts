@@ -402,6 +402,9 @@ export class SpanshClient {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: form.toString(),
     });
+    // This endpoint (uniquely) can reject inline on submit with
+    // { status: 'error', error: '<message>' } instead of a job id.
+    if (submit.status === 'error') throw new Error(String(submit.error ?? 'Spansh rejected the request'));
     const job = submit.job;
     if (!job) throw new Error('Spansh did not return a job id');
 
