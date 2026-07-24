@@ -30,7 +30,7 @@ export class EddnUploader {
         const res = await fetch(gateway, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json; charset=utf-8', 'Content-Encoding': 'gzip' },
-          body,
+          body: new Uint8Array(body),
         });
         return { status: res.status };
       });
