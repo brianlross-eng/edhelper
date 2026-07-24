@@ -24,7 +24,7 @@ export function reduceShipState(state: ShipState, ev: JournalEvent): ShipState {
   switch (ev.type) {
     case 'LoadGame': {
       // On-foot logins carry no ship; keep the last known ship/pad in that case.
-      const next: ShipState = { ...state, commander: ev.commander, credits: ev.credits, shipName: ev.shipName };
+      const next: ShipState = { ...state, commander: ev.commander, credits: ev.credits, shipName: ev.shipName ?? state.shipName };
       if (ev.ship) {
         next.ship = ev.ship;
         next.padSize = PAD_SIZE_BY_SHIP[ev.ship];

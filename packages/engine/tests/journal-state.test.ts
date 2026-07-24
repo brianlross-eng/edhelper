@@ -45,11 +45,12 @@ describe('reduceShipState', () => {
 
   it('keeps the known ship when a LoadGame arrives without one (on foot)', () => {
     let s = play([
-      { type: 'LoadGame', commander: 'Bross', credits: 100, ship: 'python' },
+      { type: 'LoadGame', commander: 'Bross', credits: 100, ship: 'python', shipName: 'Hauler' },
     ]);
     s = reduceShipState(s, { type: 'LoadGame', commander: 'Bross', credits: 90 });
     expect(s.ship).toBe('python');
     expect(s.padSize).toBe('M');
+    expect(s.shipName).toBe('Hauler');
   });
 
   it('knows pad sizes for common ships', () => {
