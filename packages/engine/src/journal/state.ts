@@ -49,5 +49,9 @@ export function reduceShipState(state: ShipState, ev: JournalEvent): ShipState {
       return { ...state, docked: false, station: undefined };
     case 'Cargo':
       return { ...state, cargoUsed: ev.count };
+    case 'MarketBuy':
+      return { ...state, credits: state.credits !== undefined ? state.credits - ev.totalCost : undefined };
+    case 'MarketSell':
+      return { ...state, credits: state.credits !== undefined ? state.credits + ev.totalSale : undefined };
   }
 }

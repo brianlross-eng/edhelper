@@ -42,6 +42,20 @@ export function parseJournalLine(line: string): JournalEvent | null {
       // SRV cargo events would otherwise zero out the ship's hold reading.
       if (raw.Vessel !== undefined && raw.Vessel !== 'Ship') return null;
       return { type: 'Cargo', count: raw.Count ?? 0 };
+    case 'MarketBuy':
+      return {
+        type: 'MarketBuy',
+        commodity: String(raw.Type ?? '').toLowerCase(),
+        count: raw.Count ?? 0,
+        totalCost: raw.TotalCost ?? 0,
+      };
+    case 'MarketSell':
+      return {
+        type: 'MarketSell',
+        commodity: String(raw.Type ?? '').toLowerCase(),
+        count: raw.Count ?? 0,
+        totalSale: raw.TotalSale ?? 0,
+      };
     default:
       return null;
   }

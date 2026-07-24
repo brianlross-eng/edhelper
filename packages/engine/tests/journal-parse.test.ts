@@ -49,4 +49,13 @@ describe('parseJournalLine', () => {
       type: 'Location', system: 'Sol', docked: false, station: undefined,
     });
   });
+
+  it('parses market buy and sell events', () => {
+    expect(
+      parseJournalLine('{"timestamp":"t","event":"MarketBuy","MarketID":1,"Type":"gold","Count":10,"BuyPrice":9000,"TotalCost":90000}')
+    ).toEqual({ type: 'MarketBuy', commodity: 'gold', count: 10, totalCost: 90000 });
+    expect(
+      parseJournalLine('{"timestamp":"t","event":"MarketSell","MarketID":1,"Type":"Gold","Count":10,"SellPrice":10000,"TotalSale":100000,"AvgPricePaid":9000}')
+    ).toEqual({ type: 'MarketSell', commodity: 'gold', count: 10, totalSale: 100000 });
+  });
 });

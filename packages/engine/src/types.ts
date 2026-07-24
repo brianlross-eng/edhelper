@@ -21,4 +21,6 @@ export type JournalEvent =
   | { type: 'FSDJump'; system: string }
   | { type: 'Docked'; system: string; station: string }
   | { type: 'Undocked' }
-  | { type: 'Cargo'; count: number };
+  | { type: 'Cargo'; count: number }
+  | { type: 'MarketBuy'; commodity: string; count: number; totalCost: number }
+  | { type: 'MarketSell'; commodity: string; count: number; totalSale: number };

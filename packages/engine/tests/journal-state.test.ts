@@ -59,4 +59,12 @@ describe('reduceShipState', () => {
     expect(PAD_SIZE_BY_SHIP['anaconda']).toBe('L');
     expect(PAD_SIZE_BY_SHIP['type9']).toBe('L');
   });
+
+  it('adjusts credits on market buys and sells', () => {
+    let s = play([{ type: 'LoadGame', commander: 'B', credits: 100000, ship: 'python' }]);
+    s = reduceShipState(s, { type: 'MarketBuy', commodity: 'gold', count: 10, totalCost: 90000 });
+    expect(s.credits).toBe(10000);
+    s = reduceShipState(s, { type: 'MarketSell', commodity: 'gold', count: 10, totalSale: 100000 });
+    expect(s.credits).toBe(110000);
+  });
 });
