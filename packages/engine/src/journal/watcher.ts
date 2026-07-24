@@ -47,6 +47,10 @@ export class JournalWatcher extends EventEmitter {
     return this.state;
   }
 
+  get journalFile(): string | null {
+    return this.file;
+  }
+
   async start(): Promise<void> {
     this.poll();
     this.timer = setInterval(() => this.poll(), this.opts.pollMs ?? 1000);
@@ -88,6 +92,7 @@ export class JournalWatcher extends EventEmitter {
       for (const line of lines) {
         const ev = parseJournalLine(line);
         if (ev) {
+          this.emit('event', ev);
           this.state = reduceShipState(this.state, ev);
           changed = true;
         }

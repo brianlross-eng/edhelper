@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { mkdtempSync, writeFileSync, appendFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { JournalEvent } from '../src/types.js';
 import { JournalWatcher } from '../src/journal/watcher.js';
 
 const LOAD = '{"event":"LoadGame","Commander":"Bross","Credits":100,"Ship":"python"}\n';
@@ -61,5 +62,16 @@ describe('JournalWatcher', () => {
     watcher = new JournalWatcher(dir, { pollMs: 50 });
     await watcher.start();
     expect(watcher.getState().commander).toBe('Bross');
+  });
+
+  it('emits raw journal events and exposes the current file', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'edh-journal-'));
+    writeFileSync(join(dir, 'Journal.2026-07-24T010000.01.log'), LOAD);
+    watcher = new JournalWatcher(dir, { pollMs: 50 });
+    const events: JournalEvent[] = [];
+    watcher.on('event', (ev: JournalEvent) => events.push(ev));
+    await watcher.start();
+    expect(events.some((e) => e.type === 'LoadGame')).toBe(true);
+    expect(watcher.journalFile).toContain('Journal.2026-07-24T010000.01.log');
   });
 });
