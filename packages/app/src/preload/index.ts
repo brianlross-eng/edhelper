@@ -15,7 +15,9 @@ contextBridge.exposeInMainWorld('edhelper', {
   startRoute: (route: unknown) => ipcRenderer.invoke('route:start', route),
   clearRoute: () => ipcRenderer.invoke('route:clear'),
   getActiveRoute: () => ipcRenderer.invoke('route:get'),
+  setEddnUpload: (enabled: boolean) => ipcRenderer.invoke('eddn:set', enabled),
   onShipState: subscribe('ship:state'),
   onRouteUpdated: subscribe('route:updated'),
   onEddn: subscribe('health:eddn'),
+  onSpansh: subscribe('health:spansh'),
 });

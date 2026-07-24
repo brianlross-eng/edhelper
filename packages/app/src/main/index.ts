@@ -4,6 +4,7 @@ import { DEFAULT_JOURNAL_DIR, JournalWatcher } from '@edhelper/engine';
 import type { JournalEvent, ShipState, TradeRoute } from '@edhelper/engine';
 import { EngineClient } from './engine-client.js';
 import { RouteTracker } from './route-tracker.js';
+import { loadSettings, saveSettings } from './settings.js';
 import type { DataHealth, PlotTradeRequest } from '../shared/ipc-types.js';
 
 const watcher = new JournalWatcher(process.env.EDHELPER_JOURNAL_DIR ?? DEFAULT_JOURNAL_DIR);
@@ -33,17 +34,22 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   engine.start();
-  void engine.request('startEddn').catch(() => {
-    /* engine host restarts re-trigger EDDN via the next getDataHealth poll */
-  });
+  const settings = loadSettings(app.getPath('userData'));
+  void engine.request('setEddnUpload', { enabled: settings.eddnUpload }).catch(() => {});
   watcher.on('state', (s: ShipState) => {
     tracker.onShipState(s);
     win?.webContents.send('ship:state', s);
   });
   watcher.on('event', (ev: JournalEvent) => tracker.onJournalEvent(ev));
+  watcher.on('raw', (raw: unknown) => {
+    void engine
+      .request('journalEvent', { raw, journalDir: process.env.EDHELPER_JOURNAL_DIR ?? DEFAULT_JOURNAL_DIR }, 30_000)
+      .catch(() => {});
+  });
   void watcher.start();
   tracker.on('updated', (r) => win?.webContents.send('route:updated', r));
   engine.on('event:eddn', (e) => win?.webContents.send('health:eddn', e));
+  engine.on('event:spansh', (s) => win?.webContents.send('health:spansh', s));
   engine.on('event:fatal', (d: unknown) => {
     console.error('[engine-host fatal]', d);
   });
@@ -55,9 +61,8 @@ app.whenReady().then(() => {
       return { ...health, journalFile: watcher.journalFile };
     } catch {
       return {
-        dbPath: '',
-        dumpImportedAt: null,
-        eddn: { status: 'stopped', applied: 0, skipped: 0 },
+        spansh: { reachable: false, lastSuccessAt: null, lastError: engine.fatalError ?? 'engine host unavailable' },
+        eddn: { enabled: false, sent: 0, dropped: 0, queued: 0 },
         journalFile: watcher.journalFile,
         error: engine.fatalError ?? 'engine host unavailable',
       };
@@ -76,6 +81,10 @@ app.whenReady().then(() => {
     return null;
   });
   ipcMain.handle('route:get', () => tracker.get());
+  ipcMain.handle('eddn:set', async (_e, enabled: boolean) => {
+    saveSettings(app.getPath('userData'), { eddnUpload: enabled });
+    return engine.request('setEddnUpload', { enabled });
+  });
 
   createWindow();
   app.on('activate', () => {

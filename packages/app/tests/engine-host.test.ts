@@ -163,5 +163,6 @@ describe('engine-host (Spansh + EDDN)', () => {
     const health = await request('getDataHealth');
     expect(health.spansh.reachable).toBe(true);
     expect(typeof health.eddn.sent).toBe('number');
+    expect(events.some((e) => e.event === 'spansh' && e.data.reachable === true)).toBe(true);
   });
 });

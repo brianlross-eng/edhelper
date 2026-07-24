@@ -18,6 +18,16 @@ function send(msg: unknown): void {
   process.stdout.write(encodeLine(msg));
 }
 
+let lastSpanshJson = '';
+function pushSpanshIfChanged(): void {
+  const health = spansh.health;
+  const json = JSON.stringify(health);
+  if (json !== lastSpanshJson) {
+    lastSpanshJson = json;
+    send({ event: 'spansh', data: health });
+  }
+}
+
 uploader.onChange((c) => send({ event: 'eddn', data: c }));
 
 function handleJournalEvent(raw: any, journalDir: string | undefined): void {
@@ -74,7 +84,8 @@ process.stdin.on('data', (chunk) => {
     if (!req || typeof req.id !== 'number') continue;
     handle(req)
       .then((result) => send({ id: req.id, ok: true, result }))
-      .catch((err) => send({ id: req.id, ok: false, error: err instanceof Error ? err.message : String(err) }));
+      .catch((err) => send({ id: req.id, ok: false, error: err instanceof Error ? err.message : String(err) }))
+      .finally(pushSpanshIfChanged);
   }
 });
 process.stdin.on('end', () => process.exit(0));
