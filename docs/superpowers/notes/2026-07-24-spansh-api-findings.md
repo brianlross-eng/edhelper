@@ -494,3 +494,152 @@ body (e.g. the start/end systems themselves, in both fixture jobs).
 | `landmark_value` bonus field | **New finding** — not in any prior declared shape; additive bonus, `null` when absent |
 | Aggregate route value | **Not provided by the API** — must be computed client-side by summing `bodies[].estimated_scan_value`/`estimated_mapping_value` |
 | Pending-state envelope shape for this endpoint specifically | **Assumed, not re-verified this session** (both fixture jobs completed before first poll) — low-risk given identical envelope confirmed twice already for sibling endpoints |
+
+## Fleet carrier routes (probed 2026-07-24)
+
+Same method as the trade-route probe: fetched `https://spansh.co.uk/fleet-carrier`, confirmed it
+loads the same Ember bundle (`elite-dangerous-gui-7c4a80cdff3416e86822ab0c9abf55fd.js`, identical
+hash to all prior probes), then read `controllers/fleet-carrier`'s `calculate()` and the
+`services/api` definition to get the real endpoint and param names BEFORE submitting anything
+(the v1.1 silent-ignore trap made guessing a non-starter). Three plot jobs submitted total,
+one systems-search lookup, all sequential with multi-second gaps.
+
+### Endpoint
+
+`POST /api/fleetcarrier/route` (bundle: `plotFleetCarrierRoute(e){return this.performRequest("/api/fleetcarrier/route",e)}`),
+form-urlencoded via the same `jquery.ajax({method:"POST", data:t, traditional:true})` path as
+trade route. `202 Accepted` with `{"job":"<uuid>","status":"queued"}`; poll `GET /api/results/{job}`.
+The submit handler also has an inline-error branch (`"error"==t.status` → `t.error` message on
+the submit response itself), which no other probed endpoint surfaced — worth handling.
+
+### Request parameters (read from `controllers/fleet-carrier` `calculate()`)
+
+| Field sent | Type | Required? | Notes |
+|---|---|---|---|
+| `source` | string(id64) | yes | **system id64, NOT a name** — the site resolves names to id64 via its search UI first. This differs from every other probed route endpoint (`from`/`system` took names). Sending a name was not tested; id64 is what the site sends. |
+| `destinations` | repeated key, string(id64) each | yes (≥1) | one form key per destination, jQuery `traditional:true` style (like `body_types`). Multi-destination = multi-waypoint route in the given order. |
+| `capacity` | string(int) | yes | total carrier capacity — hardcoded per carrier type in the site: **fleet (player) carrier = 25000, squadron carrier = 60000** |
+| `mass` | string(int) | yes | carrier hull mass — **fleet = 25000, squadron = 15000** |
+| `capacity_used` | string(int) | effectively yes | cargo currently on board (site computes `market_capacity + module_capacity` if both set, else `used_capacity`). Affects fuel burn (heavier = more tritium), NOT jump count. Verified: omitting it defaults to `0` (5489t → 3154t total fuel for the same Sol→Colonia route). |
+| `calculate_starting_fuel` | `'0'`/`'1'` | yes | site default `1`. `1` = "tell me how much tritium to load" mode; `0` = "here's my fuel, plan restocks" mode. |
+| `refuel_destinations` | repeated key, string(id64) | optional, only when `calculate_starting_fuel=1` | subset of `destinations` where the user allows market refueling (site only sends ids that are also in `destinations`). |
+| `fuel_loaded` | string(int) | only when `calculate_starting_fuel=0` | tritium in the carrier tank (site default 1000; tank max is 1000). |
+| `tritium_stored` | string(int) | only when `calculate_starting_fuel=0` | tritium carried in the carrier market/cargo. |
+
+**Parameter echo renames (worse than the riches endpoint's):** the `/api/results/{job}`
+`parameters` object echoes `source`→`source_system`, `destinations`→`destination_systems`,
+`fuel_loaded`→`current_fuel`, `tritium_stored`→`tritium_amount` (and id64s echo back as
+strings). The `result` object itself, however, echoes the ORIGINAL submitted names
+(`source`/`destinations`/`fuel_loaded`/`tritium_stored`). Don't use the `parameters` echo for
+key-name sanity checks without this mapping in mind.
+
+**Silent-ignore trap re-confirmed on this endpoint:** submitting `used_capacity=20000` (the
+controller's internal property name — a plausible wrong guess) instead of `capacity_used`
+returned 202, completed fine, and the echo showed `capacity_used: 0` — the wrong key was
+dropped without error and the route was computed for an empty carrier (3154t fuel vs the
+correct 5489t). Same 46 jumps either way, so the wrong result is dangerously plausible.
+
+### Jobs submitted
+
+1. **Fixture job** (`calculate_starting_fuel=1`): `source=10477373803` (Sol),
+   `destinations=3238296097059` (Colonia), `capacity=25000`, `mass=25000`,
+   `capacity_used=20000` → 202, job `62C190CC-8772-11F1-959A-AE8ED2C38DB2`, completed with
+   46 jump entries. Saved verbatim: `packages/app/fixtures/spansh/fleetcarrier-route-submit.json`
+   (request+response), `fleetcarrier-route-result.json` (full completed poll body, 16 KB,
+   not truncated).
+2. **Wrong-name trap check** (`used_capacity` instead of `capacity_used`): see above.
+3. **Explicit-fuel mode** (`calculate_starting_fuel=0`, `fuel_loaded=1000`,
+   `tritium_stored=3000`, `capacity_used=20000`): completed, 46 jumps, total fuel burned 5044t
+   (slightly less than mode-1's 5489t — less tritium carried as cargo = lighter carrier), and
+   exactly one mid-route restock stop appeared: jump 34 (`Blua Eaec BI-X b45-10`,
+   `must_restock: 1`, `restock_amount: 914`, `has_icy_ring: true`, `is_system_pristine: true`)
+   — in this mode the planner routes you through a pristine icy-ring system to MINE tritium
+   when loaded fuel won't cover the trip. Not saved as a fixture (3-fixture budget), shape
+   identical to the mode-1 fixture.
+
+### Completed result shape
+
+```json
+{
+  "job": "...", "parameters": {...renamed echo...}, "state": "completed", "status": "ok",
+  "result": {
+    "source": "10477373803", "destinations": ["3238296097059"],
+    "capacity": 25000, "capacity_used": 20000, "mass": 25000,
+    "calculate_starting_fuel": true, "fuel_loaded": 0, "tritium_stored": 0,
+    "refuel_destinations": [],
+    "jumps": [ /* 46 entries */ ]
+  }
+}
+```
+
+Unlike neutron (`system_jumps` + `total_jumps`) the array is named **`jumps`** and there is
+**NO aggregate field of any kind** — no total jump count, no total distance, no total fuel.
+Client must derive: jump count = `jumps.length - 1`; total fuel = sum of `jumps[].fuel_used`
+(equals the source waypoint's `restock_amount` in calculate-starting-fuel mode: 5489 in the
+fixture); remaining-distance countdown is already per-jump via `distance_to_destination`.
+
+**Per-jump fields** (all 15 present on every entry):
+
+```json
+{
+  "name": "Sol", "id64": 10477373803, "x": 0, "y": 0, "z": 0,
+  "distance": 0, "distance_to_destination": 22000.4740453411,
+  "fuel_used": 0, "fuel_in_tank": 1000, "tritium_in_market": 4489,
+  "restock_amount": 5489, "must_restock": 1,
+  "has_icy_ring": false, "is_system_pristine": false,
+  "is_desired_destination": 1
+}
+```
+
+- **Source waypoint IS entry 0** (`distance: 0`, `fuel_used: 0`), same pattern as neutron.
+- `distance` = ly jumped from the previous entry (≤ ~500, the fixed carrier jump range);
+  `distance_to_destination` = ly still to go (0 on the final entry).
+- `fuel_used` = tritium burned by THIS jump (0 on entry 0); `fuel_in_tank` = tank level AFTER
+  arriving (tank caps at 1000); `tritium_in_market` = tritium remaining in cargo after any
+  auto-transfers.
+- `restock_amount` + `must_restock` (int 0/1, **not boolean**): in calculate-starting-fuel
+  mode the ONLY restock is entry 0 (`must_restock: 1`, `restock_amount` = total tritium to
+  load = 1000 tank + rest in market). In explicit-fuel mode restocks appear mid-route at
+  icy-ring mining stops instead.
+- `has_icy_ring` / `is_system_pristine`: booleans (real `true`/`false`, unlike the int-ish
+  flags) marking tritium-mining candidates along the way — present on every jump, not just
+  restock stops (27 of 46 fixture jumps have an icy ring).
+- `is_desired_destination`: int 0/1 — marks the source AND each requested destination
+  (entries 0 and 45 in the fixture); lets the UI distinguish user waypoints from plotted
+  intermediate jumps.
+- **`id64` here is a plain JSON number** (e.g. `10477373803`, `3238296097059`) — NOT a string
+  as in the riches bodies. System id64s currently fit in a double, but the riches probe's
+  precision warning suggests treating it as opaque/stringifying early anyway. The site itself
+  parses API responses with `json-bigint` (`storeAsString: true`) globally on GET results —
+  Spansh clearly doesn't trust plain JSON numbers either.
+- Mixed flag typing in one object: `must_restock`/`is_desired_destination` are ints,
+  `has_icy_ring`/`is_system_pristine` are booleans. Don't assume uniformity.
+
+### Pending shape
+
+**Not captured** — all three jobs were already `state: "completed"` on the first poll,
+issued ~4 s after the 202 (fleet-carrier plots are the fastest job type probed yet, well
+under 5 s for a 22,000 ly / 46-jump route). No `fleetcarrier-route-pending.json` fixture
+therefore exists; the pending envelope is assumed identical to the twice-confirmed pattern
+(`state: "started"`, `status: "queued"`, `result` key absent) but was not re-verified for
+this endpoint.
+
+### Latency / headers
+
+- Submit: sub-second 202. Completion: < ~4 s (done by first poll) for all three jobs.
+- No rate-limit headers, same minimal nginx header set as all prior probes.
+
+### Summary: findings verdict (fleet carrier)
+
+| Item | Verdict |
+|---|---|
+| Endpoint `POST /api/fleetcarrier/route`, form-encoded, 202+job envelope | **Confirmed** from bundle + live |
+| `source`/`destinations` take **id64s, not names** | **Confirmed** — unique among probed route endpoints |
+| `destinations` repeated-key array | **Confirmed** (bundle `traditional:true`, same as `body_types`) |
+| `capacity`/`mass` hardcoded per carrier type (fleet 25000/25000, squadron 60000/15000) | **Confirmed** from bundle `carrierStats` |
+| `capacity_used` genuinely consumed | **Confirmed** — changes fuel totals (5489 vs 3154) |
+| Silent-ignore of wrong keys | **Re-confirmed** (`used_capacity` dropped without error) |
+| Parameter echo renames 4 fields | **New quirk** — `source_system`/`destination_systems`/`current_fuel`/`tritium_amount` |
+| No aggregate totals in result | **Confirmed** — sum `jumps[].fuel_used`, count `jumps.length - 1`, client-side |
+| Source waypoint at `jumps[0]` | **Confirmed** — `distance: 0`, `fuel_used: 0`, `is_desired_destination: 1` |
+| Pending envelope for this endpoint | **Not captured** (jobs complete in < 4 s) — assumed same as siblings |
