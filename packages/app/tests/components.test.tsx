@@ -6,6 +6,7 @@ import type { ActiveRoute } from '../src/shared/ipc-types';
 import { CockpitPanel } from '../src/renderer/src/components/CockpitPanel';
 import { RouteChecklist } from '../src/renderer/src/components/RouteChecklist';
 import { TradePlanner } from '../src/renderer/src/components/TradePlanner';
+import { DataHealthFooter } from '../src/renderer/src/components/DataHealthFooter';
 
 afterEach(cleanup);
 
@@ -97,5 +98,34 @@ describe('TradePlanner', () => {
     );
     expect(screen.queryByDisplayValue('Sol')).toBeNull();
     expect(screen.getByTestId('hop-0')).toBeTruthy();
+  });
+});
+
+describe('DataHealthFooter', () => {
+  it('shows dump age, EDDN status, and journal state', () => {
+    const twoDaysAgo = new Date(Date.now() - 2.5 * 86_400_000).toISOString();
+    render(
+      <DataHealthFooter
+        health={{
+          dbPath: 'x', dumpImportedAt: twoDaysAgo,
+          eddn: { status: 'connected', applied: 42, skipped: 3 },
+          journalFile: 'C:/journals/Journal.log',
+        }}
+      />
+    );
+    expect(screen.getByTestId('dump-age').textContent).toContain('2d old');
+    expect(screen.getByTestId('eddn').textContent).toContain('connected');
+    expect(screen.getByTestId('eddn').textContent).toContain('42');
+    expect(screen.getByTestId('journal').textContent).toContain('Journal linked');
+  });
+
+  it('points at the CLI when no dump was imported', () => {
+    render(
+      <DataHealthFooter
+        health={{ dbPath: 'x', dumpImportedAt: null, eddn: { status: 'starting', applied: 0, skipped: 0 }, journalFile: null }}
+      />
+    );
+    expect(screen.getByTestId('dump-age').textContent).toContain('import-dump');
+    expect(screen.getByTestId('journal').textContent).toContain('No journal found');
   });
 });
