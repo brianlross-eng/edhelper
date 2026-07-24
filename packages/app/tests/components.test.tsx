@@ -4,6 +4,8 @@ import { render, screen, cleanup } from '@testing-library/react';
 import type { ShipState } from '@edhelper/engine';
 import type { ActiveRoute } from '../src/shared/ipc-types';
 import { CockpitPanel } from '../src/renderer/src/components/CockpitPanel';
+import { RouteChecklist } from '../src/renderer/src/components/RouteChecklist';
+import { TradePlanner } from '../src/renderer/src/components/TradePlanner';
 
 afterEach(cleanup);
 
@@ -51,5 +53,35 @@ describe('CockpitPanel', () => {
   it('degrades gracefully with no data', () => {
     render(<CockpitPanel ship={null} route={null} />);
     expect(screen.getByText('No commander data')).toBeTruthy();
+  });
+});
+
+describe('RouteChecklist', () => {
+  it('renders hop markers by status', () => {
+    render(<RouteChecklist route={ROUTE} onClear={() => {}} />);
+    expect(screen.getByTestId('hop-0').textContent).toContain('✓');
+    expect(screen.getByTestId('hop-1').textContent).toContain('▶');
+    expect(screen.getByTestId('hop-1').textContent).toContain('tea');
+    expect(screen.getByText(/Expected \+150,000/)).toBeTruthy();
+  });
+});
+
+describe('TradePlanner', () => {
+  it('prefills inputs from ship state', () => {
+    render(
+      <TradePlanner ship={SHIP} route={null} onPlot={async () => ({ ok: false, error: 'x' })} onStart={() => {}} onClear={() => {}} />
+    );
+    expect(screen.getByDisplayValue('Sol')).toBeTruthy();
+    expect(screen.getByDisplayValue('Abraham Lincoln')).toBeTruthy();
+    expect(screen.getByDisplayValue('192')).toBeTruthy();
+    expect(screen.getByDisplayValue('7200000')).toBeTruthy();
+  });
+
+  it('shows the checklist instead of the form while a route is active', () => {
+    render(
+      <TradePlanner ship={SHIP} route={ROUTE} onPlot={async () => ({ ok: false, error: 'x' })} onStart={() => {}} onClear={() => {}} />
+    );
+    expect(screen.queryByDisplayValue('Sol')).toBeNull();
+    expect(screen.getByTestId('hop-0')).toBeTruthy();
   });
 });
