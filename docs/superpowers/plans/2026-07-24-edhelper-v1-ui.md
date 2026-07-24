@@ -2088,6 +2088,8 @@ git commit -m "docs: record UI-phase smoke validation results"
 
 ## Deferred follow-ups (UI phase)
 
+- **LineCodec unbounded buffer** — a corrupted/unterminated stream from the engine host would grow the codec buffer without limit; add a max-buffer guard (kill + restart host) before shipping to end users.
+
 - **In-app dump import/download** — needs the WAL-checkpoint + close-DB-handle dance recorded in the engine plan's follow-ups (engine host would have to close the DB during the swap).
 - **EDDN restart after engine-host crash** — the host auto-restarts, but `startEddn` is only requested once at boot; a restarted host idles until the next explicit request. Wire `EngineClient` to re-send `startEddn` after respawn.
 - **Route persistence** — the active route lives in memory; app restart loses it.
