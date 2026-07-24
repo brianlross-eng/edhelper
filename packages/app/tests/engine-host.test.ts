@@ -42,7 +42,7 @@ beforeAll(async () => {
       res.setHeader('Content-Type', 'application/json');
       if (req.url === '/trade/route') {
         res.end(JSON.stringify({ job: 'job-1' }));
-      } else if (req.url?.startsWith('/results/')) {
+      } else if (req.url?.startsWith('/results/job-1')) {
         res.end(
           JSON.stringify({
             state: 'completed',
@@ -54,6 +54,21 @@ beforeAll(async () => {
                 commodities: [{ name: 'Gold', amount: 50, buy_price: 9000, sell_price: 10000, total_profit: 50000 }],
               },
             ],
+          })
+        );
+      } else if (req.url === '/route') {
+        res.end(JSON.stringify({ job: 'njob-1' }));
+      } else if (req.url?.startsWith('/results/njob-1')) {
+        res.end(
+          JSON.stringify({
+            state: 'completed',
+            result: {
+              total_jumps: 5,
+              system_jumps: [
+                { system: 'Lave', distance_jumped: 0, distance_left: 158, jumps: 0, neutron_star: false },
+                { system: 'HD 105341', distance_jumped: 158, distance_left: 0, jumps: 5, neutron_star: true },
+              ],
+            },
           })
         );
       } else if (req.url === '/systems/search') {
@@ -180,5 +195,12 @@ describe('engine-host (Spansh + EDDN)', () => {
     expect(health.spansh.reachable).toBe(true);
     expect(typeof health.eddn.sent).toBe('number');
     expect(events.some((e) => e.event === 'spansh' && e.data.reachable === true)).toBe(true);
+  });
+
+  it('plots a neutron route via the Spansh mock', async () => {
+    const result = await request('plotNeutron', { from: 'Lave', to: 'HD 105341', jumpRange: 28.5, efficiency: 60 });
+    expect(result.waypoints).toHaveLength(2);
+    expect(result.waypoints[1].neutronStar).toBe(true);
+    expect(result.totalJumps).toBe(5);
   });
 });

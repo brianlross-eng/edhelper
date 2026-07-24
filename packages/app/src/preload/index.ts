@@ -20,4 +20,10 @@ contextBridge.exposeInMainWorld('edhelper', {
   onRouteUpdated: subscribe('route:updated'),
   onEddn: subscribe('health:eddn'),
   onSpansh: subscribe('health:spansh'),
+  plotNeutron: (req: unknown) => ipcRenderer.invoke('neutron:plot', req),
+  startNeutronRoute: (route: unknown) => ipcRenderer.invoke('neutron:start', route),
+  clearNeutronRoute: () => ipcRenderer.invoke('neutron:clear'),
+  getNeutronRoute: () => ipcRenderer.invoke('neutron:get'),
+  anchorNeutronRoute: (index: number) => ipcRenderer.invoke('neutron:anchor', index),
+  onNeutronUpdated: subscribe('neutron:updated'),
 });
