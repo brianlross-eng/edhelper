@@ -1249,7 +1249,9 @@ export const DEFAULT_JOURNAL_DIR = join(
   'Saved Games', 'Frontier Developments', 'Elite Dangerous'
 );
 
-/** Journal file names sort chronologically as strings (Journal.<timestamp>.<part>.log). */
+const NEW_FORMAT = /^Journal\.\d{4}-\d{2}-\d{2}T\d{6}\.\d+\.log$/;
+
+/** Journal file names sort chronologically as strings within the modern format. */
 function latestJournal(dir: string): string | null {
   let files: string[];
   try {
@@ -1258,8 +1260,12 @@ function latestJournal(dir: string): string | null {
     return null;
   }
   if (files.length === 0) return null;
-  files.sort();
-  return join(dir, files[files.length - 1]);
+  // Old-format names (Journal.240115123456.01.log) sort AFTER new-format ones;
+  // prefer modern files so a stale pre-rename journal is never picked.
+  const modern = files.filter((f) => NEW_FORMAT.test(f));
+  const pool = modern.length > 0 ? modern : files;
+  pool.sort();
+  return join(dir, pool[pool.length - 1]);
 }
 
 export class JournalWatcher extends EventEmitter {
