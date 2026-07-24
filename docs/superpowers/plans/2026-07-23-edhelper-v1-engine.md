@@ -1066,6 +1066,15 @@ describe('reduceShipState', () => {
     expect(s.station).toBe('Powell High');
   });
 
+  it('keeps the known ship when a LoadGame arrives without one (on foot)', () => {
+    let s = play([
+      { type: 'LoadGame', commander: 'Bross', credits: 100, ship: 'python' },
+    ]);
+    s = reduceShipState(s, { type: 'LoadGame', commander: 'Bross', credits: 90 });
+    expect(s.ship).toBe('python');
+    expect(s.padSize).toBe('M');
+  });
+
   it('knows pad sizes for common ships', () => {
     expect(PAD_SIZE_BY_SHIP['sidewinder']).toBe('S');
     expect(PAD_SIZE_BY_SHIP['python']).toBe('M');
@@ -1108,15 +1117,15 @@ export function initialShipState(): ShipState {
 
 export function reduceShipState(state: ShipState, ev: JournalEvent): ShipState {
   switch (ev.type) {
-    case 'LoadGame':
-      return {
-        ...state,
-        commander: ev.commander,
-        credits: ev.credits,
-        ship: ev.ship,
-        shipName: ev.shipName,
-        padSize: PAD_SIZE_BY_SHIP[ev.ship],
-      };
+    case 'LoadGame': {
+      // On-foot logins carry no ship; keep the last known ship/pad in that case.
+      const next: ShipState = { ...state, commander: ev.commander, credits: ev.credits, shipName: ev.shipName };
+      if (ev.ship) {
+        next.ship = ev.ship;
+        next.padSize = PAD_SIZE_BY_SHIP[ev.ship];
+      }
+      return next;
+    }
     case 'Loadout':
       return {
         ...state,
