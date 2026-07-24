@@ -2323,6 +2323,8 @@ git commit -m "docs: record engine validation results against real data"
 - **WAL checkpoint before dump swap** (`src/dump/import.ts`): the swap deletes the live DB's `-wal`/`-shm` sidecars before success is known; if a concurrent writer (future Electron app + EDDN) has un-checkpointed transactions, they'd be lost. Fix when the app plan lands: open a short-lived handle to the live DB and run `PRAGMA wal_checkpoint(TRUNCATE)` before removing sidecars.
 - **Truncated-dump floor check**: the importer refuses only *empty* imports; a drastically truncated dump with ≥1 system would still swap in. Consider comparing against a floor derived from the previous DB's system count.
 - **Concurrent-import guard**: two simultaneous importDump calls would race on the `.importing` staging path; fine for the single-process CLI, revisit for the app.
+- **Stale EDDN messages**: applyEddnCommodity doesn't skip messages older than stations.market_updated_at, so replayed EDDN traffic can briefly overwrite fresher prices. Note the column mixes two timestamp formats (dump: `2026-07-01 12:00:00+00`; EDDN: `2026-07-23T02:00:00Z`) — a staleness guard must parse to epoch ms, NOT compare strings.
+- **EDDN/Spansh symbol reconciliation**: Task 14 should count commodities rows created by EDDN that didn't exist from the dump (a nonzero count means symbol-format mismatch fragmenting listings across duplicate commodity rows).
 
 ## Plan complete — what comes next
 
