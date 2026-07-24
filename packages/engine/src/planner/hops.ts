@@ -92,7 +92,7 @@ export function findCandidateHops(db: DB, fromStationId: number, c: HopConstrain
   const hops: Hop[] = [];
   for (const r of rows) {
     if (r.padRank < minPadRank) continue;
-    const units = Math.min(c.cargoCapacity, Math.floor(c.capital / r.buyPrice), r.supply);
+    const units = Math.min(c.cargoCapacity, Math.floor(c.capital / r.buyPrice), r.supply, r.demand);
     if (units <= 0) continue;
     const profit = units * (r.sellPrice - r.buyPrice);
     hops.push({

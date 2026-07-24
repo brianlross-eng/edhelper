@@ -57,4 +57,13 @@ describe('findCandidateHops', () => {
     const fresh = findCandidateHops(db, STATIONS.alpha, { ...BASE, maxDataAgeDays: 5 });
     expect(fresh.some((h) => h.toStationId === STATIONS.beta)).toBe(true);
   });
+
+  it('caps units by destination demand', () => {
+    const db = seedFixture();
+    db.prepare('UPDATE listings SET demand = 40 WHERE station_id = ? AND commodity_id = 1').run(STATIONS.beta);
+    const hops = findCandidateHops(db, STATIONS.alpha, BASE);
+    const gold = hops.find((h) => h.commodity === 'gold' && h.toStationId === STATIONS.beta)!;
+    expect(gold.units).toBe(40);
+    expect(gold.profit).toBe(40_000);
+  });
 });
