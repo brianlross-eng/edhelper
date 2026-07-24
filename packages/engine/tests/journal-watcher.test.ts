@@ -49,4 +49,17 @@ describe('JournalWatcher', () => {
     await waitFor(() => watcher!.getState().commander === 'Bross2');
     expect(watcher.getState().padSize).toBe('L');
   });
+
+  it('ignores stale old-format journal names', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'edh-journal-'));
+    // Pre-2021 name — sorts lexicographically after new-format names.
+    writeFileSync(
+      join(dir, 'Journal.210115123456.01.log'),
+      '{"event":"LoadGame","Commander":"Old","Credits":1,"Ship":"eagle"}\n'
+    );
+    writeFileSync(join(dir, 'Journal.2026-07-23T010000.01.log'), LOAD);
+    watcher = new JournalWatcher(dir, { pollMs: 50 });
+    await watcher.start();
+    expect(watcher.getState().commander).toBe('Bross');
+  });
 });
