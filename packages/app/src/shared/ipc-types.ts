@@ -113,6 +113,13 @@ export interface PlotExplorationRequest {
   avoidThargoids: boolean;
 }
 
+export interface ExplorationLandmark {
+  type: string;
+  subtype: string;
+  count: number;
+  value: number;
+}
+
 export interface ExplorationBody {
   name: string;
   subtype: string;
@@ -120,6 +127,10 @@ export interface ExplorationBody {
   scanValue: number;
   mappingValue: number;
   terraformable: boolean;
+  /** Exobiology only: total biological landmark value for the body (NOT the sum of landmarks[]). */
+  landmarkValue?: number;
+  /** Exobiology only: per-genus signals on the body. */
+  landmarks?: ExplorationLandmark[];
 }
 
 export interface ExplorationWaypoint {
@@ -134,6 +145,8 @@ export interface ExplorationRoute {
   totalScanValue: number;
   totalMappingValue: number;
   totalBodies: number;
+  /** Exobiology only: sum of per-body landmarkValue. */
+  totalLandmarkValue?: number;
 }
 
 export type PlotExplorationResponse = { ok: true; result: ExplorationRoute } | { ok: false; error: string };
@@ -187,6 +200,48 @@ export interface ActiveFleetCarrierRoute {
   copiedSystem: string | null;
 }
 
+/** ------- Tourist routing ------- */
+export interface PlotTouristRequest {
+  source: string;
+  destinations: string[];
+  range: number;
+  loop: boolean;
+}
+
+export interface TouristWaypoint {
+  system: string;
+  jumps: number;
+  distance: number;
+}
+
+export interface TouristRoute {
+  waypoints: TouristWaypoint[];
+  totalJumps: number;
+  totalDistanceLy: number;
+}
+
+export type PlotTouristResponse = { ok: true; result: TouristRoute } | { ok: false; error: string };
+
+export interface ActiveTouristRoute {
+  route: TouristRoute;
+  currentWaypoint: number;
+  waypointStatus: WaypointStatus[];
+  copiedSystem: string | null;
+}
+
+/** ------- Exomastery (exobiology) routing ------- */
+export interface PlotExomasteryRequest {
+  from: string;
+  to?: string;
+  jumpRange: number;
+  radius: number;
+  maxResults: number;
+  maxDistance: number;
+  minValue: number;
+  loop: boolean;
+  avoidThargoids: boolean;
+}
+
 /** ------- Renderer-facing API (window.edhelper) ------- */
 export interface EdhelperApi {
   getShipState(): Promise<ShipState>;
@@ -218,4 +273,11 @@ export interface EdhelperApi {
   getCarrierRoute(): Promise<ActiveFleetCarrierRoute | null>;
   anchorCarrierRoute(index: number): Promise<ActiveFleetCarrierRoute | null>;
   onCarrierUpdated(cb: (r: ActiveFleetCarrierRoute | null) => void): () => void;
+  plotTourist(req: PlotTouristRequest): Promise<PlotTouristResponse>;
+  startTouristRoute(route: TouristRoute): Promise<ActiveTouristRoute>;
+  clearTouristRoute(): Promise<void>;
+  getTouristRoute(): Promise<ActiveTouristRoute | null>;
+  anchorTouristRoute(index: number): Promise<ActiveTouristRoute | null>;
+  onTouristUpdated(cb: (r: ActiveTouristRoute | null) => void): () => void;
+  plotExomastery(req: PlotExomasteryRequest): Promise<PlotExplorationResponse>;
 }

@@ -13,6 +13,10 @@ import type {
   PlotFleetCarrierRequest,
   FleetCarrierRoute,
   FleetCarrierWaypoint,
+  PlotTouristRequest,
+  TouristRoute,
+  TouristWaypoint,
+  PlotExomasteryRequest,
 } from '../shared/ipc-types.js';
 
 /*
@@ -354,6 +358,16 @@ export class SpanshClient {
         scanValue: b.estimated_scan_value ?? 0,
         mappingValue: b.estimated_mapping_value ?? 0,
         terraformable: Boolean(b.is_terraformable),
+        // Exobiology responses only — riches-family bodies lack these keys and
+        // keep their exact previous shape (no landmark fields at all).
+        ...(b.landmark_value !== undefined
+          ? {
+              landmarkValue: b.landmark_value ?? 0,
+              landmarks: (b.landmarks ?? []).map((l: any) => ({
+                type: l.type ?? '', subtype: l.subtype ?? '', count: l.count ?? 0, value: l.value ?? 0,
+              })),
+            }
+          : {}),
       })),
     }));
     // Spansh quirk: unlike neutron routes, the exploration source waypoint carries
@@ -366,6 +380,9 @@ export class SpanshClient {
       totalScanValue: allBodies.reduce((s, b) => s + b.scanValue, 0),
       totalMappingValue: allBodies.reduce((s, b) => s + b.mappingValue, 0),
       totalBodies: allBodies.length,
+      ...(allBodies.some((b) => b.landmarkValue !== undefined)
+        ? { totalLandmarkValue: allBodies.reduce((s, b) => s + (b.landmarkValue ?? 0), 0) }
+        : {}),
     };
   }
 
@@ -457,6 +474,122 @@ export class SpanshClient {
       totalDistanceLy: waypoints.reduce((s, w) => s + w.distance, 0),
       totalTritium: waypoints.reduce((s, w) => s + w.fuelUsed, 0),
     };
+  }
+
+  /*
+   * DECLARED SHAPE (canonical: tourist-route-submit.json / tourist-route-result.json,
+   * live-probed 2026-07-24 — see the findings doc's "Tourist routes" section):
+   *  - POST {base}/tourist/route (form): source (system NAME, not id64), repeated
+   *    SINGULAR `destination` keys (one per destination — the site controller calls the
+   *    property "destinations" but serializes the form key as `destination`; the
+   *    parameters echo on /results/{job} renames it back to `destinations`),
+   *    final_destination (always sent, '' when unset — pins the last stop when set),
+   *    range, loop ('1' returns the route to source at the end).
+   *    Can reject inline on submit with { status: 'error', error: '<message>' }.
+   *  - GET {base}/results/{job} -> completed body result.system_jumps[]:
+   *    { system, jumps, distance, id64, x, y, z }. The source row is index 0 with
+   *    jumps: 0 and distance: 0 (no normalization needed, unlike exploration); with
+   *    loop the source repeats at the end as a normal waypoint. Visiting order is
+   *    OPTIMIZED by Spansh, not the submitted order. NO aggregate totals — summed
+   *    client-side. MIXED id64 typing (number on most rows, string on the looped
+   *    source row) — id64 is ignored entirely by the mapping below.
+   */
+  async plotTourist(req: PlotTouristRequest): Promise<TouristRoute> {
+    const form = new URLSearchParams({
+      source: req.source,
+      final_destination: '',
+      range: String(req.range),
+      loop: req.loop ? '1' : '0',
+    });
+    for (const d of req.destinations) form.append('destination', d);
+    const submit = await this.request('/tourist/route', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: form.toString(),
+    });
+    if (submit.status === 'error') throw new Error(String(submit.error ?? 'Spansh rejected the request'));
+    const job = submit.job;
+    if (!job) throw new Error('Spansh did not return a job id');
+
+    for (let i = 0; i < MAX_POLLS; i++) {
+      const result = await this.request(`/results/${job}`, { method: 'GET' });
+      // Same family as neutron/riches: pending body has no usable result —
+      // require completion or a non-empty system_jumps array.
+      if (
+        result.state === 'completed' ||
+        (Array.isArray(result.result?.system_jumps) && result.result.system_jumps.length > 0)
+      ) {
+        return this.mapTouristResult(result.result?.system_jumps ?? []);
+      }
+      await new Promise((r) => setTimeout(r, this.pollMs));
+    }
+    throw new Error('Spansh tourist job timed out');
+  }
+
+  private mapTouristResult(rawJumps: any[]): TouristRoute {
+    const waypoints: TouristWaypoint[] = rawJumps.map((j) => ({
+      system: j.system ?? '',
+      jumps: j.jumps ?? 0,
+      distance: j.distance ?? 0,
+    }));
+    return {
+      waypoints,
+      totalJumps: waypoints.reduce((s, w) => s + w.jumps, 0),
+      totalDistanceLy: waypoints.reduce((s, w) => s + w.distance, 0),
+    };
+  }
+
+  /*
+   * DECLARED SHAPE (canonical: exomastery-route-submit.json / exomastery-route-result.json,
+   * live-probed 2026-07-24 — see the findings doc's "Exomastery routes" section):
+   *  - POST {base}/exobiology/route (form) — Expressway to Exomastery has its OWN
+   *    endpoint, NOT /riches/route. Params mirror the riches family: from, optional to,
+   *    range, radius, max_results, max_distance, min_value (filters on bio
+   *    landmark_value, not scan value; site default 10,000,000), avoid_thargoids, loop.
+   *    NO body_types and NO use_mapping_value keys. Can reject inline on submit with
+   *    { status: 'error', error: '<message>' }.
+   *  - GET {base}/results/{job} -> riches-style flat waypoint array (result.result IS
+   *    the array): { name, id64 (string — read it, never `id`), jumps, x, y, z,
+   *    bodies: [...] }. Bodies carry the riches fields plus landmark_value and
+   *    landmarks[] { type, subtype, count, value }. QUIRK: landmark_value ≠
+   *    sum(landmarks[].value) (35,275,300 vs 31,945,700 on the fixture) — display
+   *    both, derive neither. Source waypoint carries jumps: 1 (normalized to 0 by
+   *    mapExplorationResult, same as riches). NO aggregate totals — summed client-side.
+   */
+  async plotExomastery(req: PlotExomasteryRequest): Promise<ExplorationRoute> {
+    const form = new URLSearchParams({
+      from: req.from,
+      range: String(req.jumpRange),
+      radius: String(req.radius),
+      max_results: String(req.maxResults),
+      max_distance: String(req.maxDistance),
+      min_value: String(req.minValue),
+      avoid_thargoids: req.avoidThargoids ? '1' : '0',
+      loop: req.loop ? '1' : '0',
+    });
+    if (req.to) form.set('to', req.to);
+    const submit = await this.request('/exobiology/route', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: form.toString(),
+    });
+    if (submit.status === 'error') throw new Error(String(submit.error ?? 'Spansh rejected the request'));
+    const job = submit.job;
+    if (!job) throw new Error('Spansh did not return a job id');
+
+    for (let i = 0; i < MAX_POLLS; i++) {
+      const result = await this.request(`/results/${job}`, { method: 'GET' });
+      // Queued jobs on this endpoint family can carry result: [] before
+      // completion, so an array alone is not proof the job finished.
+      if (
+        result.state === 'completed' ||
+        (Array.isArray(result.result) && result.result.length > 0)
+      ) {
+        return this.mapExplorationResult(result.result ?? []);
+      }
+      await new Promise((r) => setTimeout(r, this.pollMs));
+    }
+    throw new Error('Spansh exomastery job timed out');
   }
 }
 
