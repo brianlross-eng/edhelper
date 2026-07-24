@@ -98,6 +98,53 @@ export interface ActiveNeutronRoute {
   copiedSystem: string | null;
 }
 
+/** ------- Exploration routing (riches/ammonia/earth/rocky — one endpoint) ------- */
+export interface PlotExplorationRequest {
+  from: string;
+  to?: string;
+  jumpRange: number;
+  radius: number;
+  maxResults: number;
+  maxDistance: number;
+  minValue: number;
+  /** [] = Road to Riches (no filter). */
+  bodyTypes: string[];
+  loop: boolean;
+  avoidThargoids: boolean;
+}
+
+export interface ExplorationBody {
+  name: string;
+  subtype: string;
+  distanceToArrival: number;
+  scanValue: number;
+  mappingValue: number;
+  terraformable: boolean;
+}
+
+export interface ExplorationWaypoint {
+  system: string;
+  jumps: number;
+  bodies: ExplorationBody[];
+}
+
+export interface ExplorationRoute {
+  waypoints: ExplorationWaypoint[];
+  totalJumps: number;
+  totalScanValue: number;
+  totalMappingValue: number;
+  totalBodies: number;
+}
+
+export type PlotExplorationResponse = { ok: true; result: ExplorationRoute } | { ok: false; error: string };
+
+export interface ActiveExplorationRoute {
+  route: ExplorationRoute;
+  currentWaypoint: number;
+  waypointStatus: WaypointStatus[];
+  copiedSystem: string | null;
+}
+
 /** ------- Renderer-facing API (window.edhelper) ------- */
 export interface EdhelperApi {
   getShipState(): Promise<ShipState>;

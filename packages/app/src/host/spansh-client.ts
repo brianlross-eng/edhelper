@@ -6,6 +6,10 @@ import type {
   PlotNeutronRequest,
   NeutronRoute,
   NeutronWaypoint,
+  PlotExplorationRequest,
+  ExplorationRoute,
+  ExplorationWaypoint,
+  ExplorationBody,
 } from '../shared/ipc-types.js';
 
 /*
@@ -288,6 +292,69 @@ export class SpanshClient {
       // DECLARED SHAPE comment above for the live numbers that proved this (230 vs. 416).
       totalJumps: waypoints.reduce((s, w) => s + w.jumps, 0),
       totalDistanceLy: waypoints.reduce((s, w) => s + w.distanceJumped, 0),
+    };
+  }
+
+  /*
+   * DECLARED SHAPE (canonical: riches-route-*.json / ammonia-route-result.json,
+   * probe commit 14ffe67): POST {base}/riches/route (form; repeated body_types keys)
+   * -> { job }. Results: { state, result: [waypoint...] } where waypoint =
+   * { name, id64, jumps, x, y, z, bodies: [{ name, subtype, distance_to_arrival,
+   *   estimated_scan_value, estimated_mapping_value, is_terraformable, ... }] }.
+   * No aggregate totals — summed client-side. Use id64 strings, never `id`.
+   */
+  async plotExploration(req: PlotExplorationRequest): Promise<ExplorationRoute> {
+    const form = new URLSearchParams({
+      from: req.from,
+      range: String(req.jumpRange),
+      radius: String(req.radius),
+      max_results: String(req.maxResults),
+      max_distance: String(req.maxDistance),
+      min_value: String(req.minValue),
+      loop: req.loop ? '1' : '0',
+      avoid_thargoids: req.avoidThargoids ? '1' : '0',
+      use_mapping_value: '0',
+    });
+    if (req.to) form.set('to', req.to);
+    for (const t of req.bodyTypes) form.append('body_types', t);
+    const submit = await this.request('/riches/route', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: form.toString(),
+    });
+    const job = submit.job;
+    if (!job) throw new Error('Spansh did not return a job id');
+
+    for (let i = 0; i < MAX_POLLS; i++) {
+      const result = await this.request(`/results/${job}`, { method: 'GET' });
+      if (result.state === 'completed' || Array.isArray(result.result)) {
+        return this.mapExplorationResult(result.result ?? []);
+      }
+      await new Promise((r) => setTimeout(r, this.pollMs));
+    }
+    throw new Error('Spansh exploration job timed out');
+  }
+
+  private mapExplorationResult(rawWaypoints: any[]): ExplorationRoute {
+    const waypoints: ExplorationWaypoint[] = rawWaypoints.map((w) => ({
+      system: w.name ?? '',
+      jumps: w.jumps ?? 0,
+      bodies: (w.bodies ?? []).map((b: any) => ({
+        name: b.name ?? '',
+        subtype: b.subtype ?? '',
+        distanceToArrival: b.distance_to_arrival ?? 0,
+        scanValue: b.estimated_scan_value ?? 0,
+        mappingValue: b.estimated_mapping_value ?? 0,
+        terraformable: Boolean(b.is_terraformable),
+      })),
+    }));
+    const allBodies = waypoints.flatMap((w) => w.bodies);
+    return {
+      waypoints,
+      totalJumps: waypoints.reduce((s, w) => s + w.jumps, 0),
+      totalScanValue: allBodies.reduce((s, b) => s + b.scanValue, 0),
+      totalMappingValue: allBodies.reduce((s, b) => s + b.mappingValue, 0),
+      totalBodies: allBodies.length,
     };
   }
 }

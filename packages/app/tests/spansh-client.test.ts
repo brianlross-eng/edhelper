@@ -139,3 +139,41 @@ describe('plotNeutron', () => {
     await expect(client.plotNeutron(NREQ)).rejects.toThrow();
   });
 });
+
+describe('plotExploration', () => {
+  const XREQ = {
+    from: 'Sol', to: 'Colonia', jumpRange: 28.5, radius: 25, maxResults: 50,
+    maxDistance: 50000, minValue: 100000, bodyTypes: [] as string[], loop: false, avoidThargoids: false,
+  };
+
+  it('submits a riches job and maps waypoints with body values', async () => {
+    const { fn, calls } = fakeFetch({
+      '/riches/route': () => ({ body: fixture('riches-route-submit.json') }),
+      '/results/': () => ({ body: fixture('riches-route-result.json') }),
+    });
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    const route = await client.plotExploration(XREQ);
+    expect(route.waypoints.length).toBeGreaterThan(0);
+    expect(route.totalBodies).toBeGreaterThan(0);
+    expect(route.totalScanValue).toBeGreaterThan(0);
+    expect(route.totalMappingValue).toBeGreaterThan(0);
+    const firstWithBodies = route.waypoints.find((w) => w.bodies.length > 0)!;
+    expect(firstWithBodies.bodies[0].subtype).toBeTruthy();
+    expect(firstWithBodies.bodies[0].scanValue).toBeGreaterThan(0);
+    const submit = calls.find((c) => c.url.includes('/riches/route'))!;
+    expect(String(submit.init.body)).toContain('min_value=100000');
+    expect(String(submit.init.body)).not.toContain('body_types');
+  });
+
+  it('sends repeated body_types keys for variant modes', async () => {
+    const { fn, calls } = fakeFetch({
+      '/riches/route': () => ({ body: fixture('riches-route-submit.json') }),
+      '/results/': () => ({ body: fixture('ammonia-route-result.json') }),
+    });
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    const route = await client.plotExploration({ ...XREQ, minValue: 1, bodyTypes: ['Ammonia world'] });
+    expect(route.waypoints.some((w) => w.bodies.some((b) => b.subtype === 'Ammonia world'))).toBe(true);
+    const submit = calls.find((c) => c.url.includes('/riches/route'))!;
+    expect(String(submit.init.body)).toContain('body_types=Ammonia+world');
+  });
+});
