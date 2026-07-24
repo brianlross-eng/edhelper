@@ -19,6 +19,7 @@ export class EddnClient extends EventEmitter {
   private heartbeatTimer: NodeJS.Timeout | null = null;
 
   async start(): Promise<void> {
+    if (this.running) return;
     this.running = true;
     this.heartbeatTimer = setInterval(() => {
       if (this.running && Date.now() - this.lastMessageAt > HEARTBEAT_MS) {
@@ -83,7 +84,7 @@ export class EddnClient extends EventEmitter {
         this.emit('commodity', msg);
       }
     } catch {
-      // Socket closed (stop/restart) or transport error — heartbeat handles recovery.
+      // Genuine transport error — intentional close() resolves the iterator instead of throwing.
       if (this.running && this.sock === sock) {
         this.emit('status', 'reconnecting');
         this.restart();
