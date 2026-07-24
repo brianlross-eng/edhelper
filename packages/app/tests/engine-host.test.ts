@@ -99,6 +99,41 @@ beforeAll(async () => {
             ] },
           })
         );
+      } else if (req.url === '/tourist/route') {
+        res.statusCode = 202;
+        res.end(JSON.stringify({ job: 'TJOB', status: 'queued' }));
+      } else if (req.url?.startsWith('/results/TJOB')) {
+        res.end(
+          JSON.stringify({
+            state: 'completed', status: 'ok',
+            result: { system_jumps: [
+              { system: 'Sol', jumps: 0, distance: 0 },
+              { system: 'A', jumps: 2, distance: 10 },
+              { system: 'B', jumps: 3, distance: 12 },
+            ] },
+          })
+        );
+      } else if (req.url === '/exobiology/route') {
+        res.statusCode = 202;
+        res.end(JSON.stringify({ job: 'XJOB' }));
+      } else if (req.url?.startsWith('/results/XJOB')) {
+        res.end(
+          JSON.stringify({
+            state: 'completed',
+            result: [
+              { name: 'Sol', jumps: 1, bodies: [] },
+              {
+                name: 'Bio', jumps: 2,
+                bodies: [{
+                  name: 'Bio 1', subtype: 'Rocky body', distance_to_arrival: 100,
+                  estimated_scan_value: 500, estimated_mapping_value: 2000, is_terraformable: false,
+                  landmark_value: 5000000,
+                  landmarks: [{ type: 'Tussock', subtype: 'T. Stig', count: 3, value: 4000000 }],
+                }],
+              },
+            ],
+          })
+        );
       } else if (req.url === '/systems/search') {
         // Echo the queried name (with an id64) so the carrier plotter's exact-name
         // id64 resolution works for any system; searchSystems only maps `name`.
@@ -243,6 +278,26 @@ describe('engine-host (Spansh + EDDN)', () => {
     expect(result.waypoints).toHaveLength(2);
     expect(result.totalBodies).toBe(1);
     expect(result.totalMappingValue).toBe(700000);
+  });
+
+  it('plots a tourist route end-to-end', async () => {
+    const result = await request('plotTourist', {
+      source: 'Sol', destinations: ['A', 'B'], range: 28.5, loop: false,
+    });
+    expect(result.waypoints).toHaveLength(3);
+    expect(result.totalJumps).toBe(5);
+    expect(result.totalDistanceLy).toBe(22);
+  });
+
+  it('plots an exomastery route end-to-end', async () => {
+    const result = await request('plotExomastery', {
+      from: 'Sol', jumpRange: 28.5, radius: 25, maxResults: 50, maxDistance: 50000,
+      minValue: 10000000, loop: false, avoidThargoids: true,
+    });
+    expect(result.waypoints).toHaveLength(2);
+    expect(result.waypoints[0].jumps).toBe(0);
+    expect(result.totalLandmarkValue).toBe(5000000);
+    expect(result.waypoints[1].bodies[0].landmarks).toHaveLength(1);
   });
 
   it('plots a fleet carrier route end-to-end', async () => {

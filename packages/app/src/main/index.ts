@@ -15,6 +15,8 @@ import type {
   ExplorationWaypoint,
   FleetCarrierRoute,
   FleetCarrierWaypoint,
+  TouristRoute,
+  TouristWaypoint,
 } from '../shared/ipc-types.js';
 
 const watcher = new JournalWatcher(process.env.EDHELPER_JOURNAL_DIR ?? DEFAULT_JOURNAL_DIR);
@@ -26,6 +28,9 @@ const exploration = new WaypointTracker<ExplorationWaypoint, ExplorationRoute>({
 const carrier = new WaypointTracker<FleetCarrierWaypoint, FleetCarrierRoute>({
   copy: (text) => clipboard.writeText(text),
   eventType: 'CarrierJump',
+});
+const tourist = new WaypointTracker<TouristWaypoint, TouristRoute>({
+  copy: (text) => clipboard.writeText(text),
 });
 // The engine host runs under plain Node (native deps use the system ABI, not Electron's).
 const engine = new EngineClient({
@@ -65,6 +70,7 @@ app.whenReady().then(() => {
     neutron.onJournalEvent(ev);
     exploration.onJournalEvent(ev);
     carrier.onJournalEvent(ev);
+    tourist.onJournalEvent(ev);
   });
   void watcher.start();
   // Registered after start() on purpose: the initial synchronous replay of the
@@ -83,6 +89,7 @@ app.whenReady().then(() => {
   neutron.on('updated', (r) => win?.webContents.send('neutron:updated', r));
   exploration.on('updated', (r) => win?.webContents.send('exploration:updated', r));
   carrier.on('updated', (r) => win?.webContents.send('carrier:updated', r));
+  tourist.on('updated', (r) => win?.webContents.send('tourist:updated', r));
   engine.on('event:eddn', (e) => win?.webContents.send('health:eddn', e));
   engine.on('event:spansh', (s) => win?.webContents.send('health:spansh', s));
   engine.on('event:fatal', (d: unknown) => {
@@ -126,6 +133,7 @@ app.whenReady().then(() => {
   ipcMain.handle('neutron:start', (_e, route: NeutronRoute) => {
     exploration.clear(); // travel routes are mutually exclusive (all own the clipboard)
     carrier.clear();
+    tourist.clear();
     return neutron.start(route);
   });
   ipcMain.handle('neutron:clear', () => {
@@ -144,6 +152,7 @@ app.whenReady().then(() => {
   ipcMain.handle('exploration:start', (_e, route: ExplorationRoute) => {
     neutron.clear(); // travel routes are mutually exclusive (all own the clipboard)
     carrier.clear();
+    tourist.clear();
     return exploration.start(route);
   });
   ipcMain.handle('exploration:clear', () => {
@@ -162,6 +171,7 @@ app.whenReady().then(() => {
   ipcMain.handle('carrier:start', (_e, route: FleetCarrierRoute) => {
     neutron.clear(); // travel routes are mutually exclusive (all own the clipboard)
     exploration.clear();
+    tourist.clear();
     return carrier.start(route);
   });
   ipcMain.handle('carrier:clear', () => {
@@ -170,6 +180,32 @@ app.whenReady().then(() => {
   });
   ipcMain.handle('carrier:get', () => carrier.get());
   ipcMain.handle('carrier:anchor', (_e, index: number) => carrier.anchor(index));
+  ipcMain.handle('tourist:plot', async (_e, req) => {
+    try {
+      return { ok: true, result: await engine.request('plotTourist', req) };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  });
+  ipcMain.handle('tourist:start', (_e, route: TouristRoute) => {
+    neutron.clear(); // travel routes are mutually exclusive (all own the clipboard)
+    exploration.clear();
+    carrier.clear();
+    return tourist.start(route);
+  });
+  ipcMain.handle('tourist:clear', () => {
+    tourist.clear();
+    return null;
+  });
+  ipcMain.handle('tourist:get', () => tourist.get());
+  ipcMain.handle('tourist:anchor', (_e, index: number) => tourist.anchor(index));
+  ipcMain.handle('exomastery:plot', async (_e, req) => {
+    try {
+      return { ok: true, result: await engine.request('plotExomastery', req) };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  });
   ipcMain.handle('eddn:set', async (_e, enabled: boolean) => {
     saveSettings(app.getPath('userData'), { eddnUpload: enabled });
     try {
