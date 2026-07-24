@@ -137,7 +137,7 @@ export function NeutronPlotter({ ship, route, onPlot, onStart, onClear, onAnchor
             </div>
           ))}
           <div className="route-summary">
-            <span />
+            <span className="muted">Starting replaces any active exploration route.</span>
             <button className="btn" onClick={() => onStart(result)}>
               START ROUTE
             </button>

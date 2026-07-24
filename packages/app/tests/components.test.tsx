@@ -249,6 +249,17 @@ describe('ExplorationRouter', () => {
     fireEvent.click(within(screen.getByTestId('xwp-2')).getByText('Copy'));
     expect(anchored).toBe(2);
   });
+
+  it('notes travel-route exclusivity next to START', async () => {
+    render(
+      <ExplorationRouter ship={SHIP} route={null}
+        onPlot={async () => ({ ok: true, result: XACTIVE.route })} onStart={() => {}} onClear={() => {}} onAnchor={() => {}} />
+    );
+    fireEvent.change(screen.getAllByRole('textbox')[0], { target: { value: 'Sol' } });
+    fireEvent.change(screen.getAllByRole('textbox')[2], { target: { value: '28' } });
+    fireEvent.click(screen.getByText('PLOT ROUTE'));
+    expect(await screen.findByText(/replaces any active neutron route/)).toBeTruthy();
+  });
 });
 
 describe('CockpitPanel exploration card', () => {

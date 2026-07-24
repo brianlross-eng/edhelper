@@ -132,7 +132,7 @@ export function ExplorationRouter({ ship, route, onPlot, onStart, onClear, onAnc
     <div>
       <div className="checks" style={{ marginBottom: 12 }}>
         {MODES.map((m, i) => (
-          <button key={m.label} className={`tool-tab ${mode === i ? 'active' : ''}`} onClick={() => setMode(i)}>
+          <button key={m.label} className={`tool-tab ${mode === i ? 'active' : ''}`} onClick={() => { setMode(i); setResult(null); setError(null); }}>
             {m.label}
           </button>
         ))}
@@ -160,7 +160,7 @@ export function ExplorationRouter({ ship, route, onPlot, onStart, onClear, onAnc
           </div>
           {result.waypoints.map((wp, i) => waypointRow(wp, i, '○', '', false))}
           <div className="route-summary">
-            <span />
+            <span className="muted">Starting replaces any active neutron route.</span>
             <button className="btn" onClick={() => onStart(result)}>START ROUTE</button>
           </div>
         </div>
