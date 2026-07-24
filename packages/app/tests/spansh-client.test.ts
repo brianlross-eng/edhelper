@@ -181,3 +181,86 @@ describe('plotExploration', () => {
     expect(String(submit.init.body)).toContain('body_types=Ammonia+world');
   });
 });
+
+describe('plotFleetCarrier', () => {
+  const KNOWN: Record<string, { name: string; id64: number }> = {
+    sol: { name: 'Sol', id64: 10477373803 },
+    colonia: { name: 'Colonia', id64: 3238296097059 },
+  };
+
+  function carrierRoutes() {
+    return {
+      '/systems/search': (init?: any) => {
+        const q = String(JSON.parse(init.body).filters.name.value).toLowerCase();
+        const hit = KNOWN[q];
+        return { body: { results: hit ? [hit] : [] } };
+      },
+      '/fleetcarrier/route': () => ({
+        status: 202,
+        body: fixture('fleetcarrier-route-submit.json').response.body,
+      }),
+      '/results/': () => ({ body: fixture('fleetcarrier-route-result.json') }),
+    };
+  }
+
+  it('resolves names to id64, submits verified params, and maps the result', async () => {
+    const { fn, calls } = fakeFetch(carrierRoutes());
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    const route = await client.plotFleetCarrier({
+      from: 'Sol', to: 'Colonia', capacity: 25000, mass: 25000, capacityUsed: 20000,
+    });
+    const submit = calls.find((c) => c.url.includes('/fleetcarrier/route'))!;
+    const form = new URLSearchParams(String(submit.init.body));
+    expect(form.get('source')).toBe('10477373803');
+    expect(form.getAll('destinations')).toEqual(['3238296097059']);
+    expect(form.get('capacity')).toBe('25000');
+    expect(form.get('mass')).toBe('25000');
+    expect(form.get('capacity_used')).toBe('20000');
+    expect(form.get('calculate_starting_fuel')).toBe('1');
+
+    expect(route.waypoints.length).toBe(46);
+    expect(route.waypoints[0]).toMatchObject({
+      system: 'Sol', jumps: 0, mustRestock: true, restockAmount: 5489,
+    });
+    expect(route.waypoints[1].jumps).toBe(1);
+    expect(route.waypoints[45]).toMatchObject({ system: 'Colonia', distanceToGo: 0 });
+    expect(route.totalJumps).toBe(45);
+    expect(route.totalTritium).toBe(5489); // sum(fuel_used) == jumps[0].restock_amount
+    expect(route.totalDistanceLy).toBeGreaterThan(22000);
+  });
+
+  it('surfaces inline submit errors and never polls', async () => {
+    const routes = carrierRoutes();
+    routes['/fleetcarrier/route'] = () => ({
+      status: 202,
+      body: { status: 'error', error: 'no route found' },
+    });
+    const { fn, calls } = fakeFetch(routes);
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    await expect(
+      client.plotFleetCarrier({ from: 'Sol', to: 'Colonia', capacity: 25000, mass: 25000, capacityUsed: 0 })
+    ).rejects.toThrow('no route found');
+    expect(calls.some((c) => c.url.includes('/results/'))).toBe(false);
+  });
+
+  it('resolves lowercase system names case-insensitively', async () => {
+    const { fn, calls } = fakeFetch(carrierRoutes());
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    await client.plotFleetCarrier({
+      from: 'sol', to: 'colonia', capacity: 25000, mass: 25000, capacityUsed: 0,
+    });
+    const submit = calls.find((c) => c.url.includes('/fleetcarrier/route'))!;
+    const form = new URLSearchParams(String(submit.init.body));
+    expect(form.get('source')).toBe('10477373803');
+    expect(form.getAll('destinations')).toEqual(['3238296097059']);
+  });
+
+  it('rejects unknown system names before submitting', async () => {
+    const { fn, calls } = fakeFetch(carrierRoutes());
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    await expect(
+      client.plotFleetCarrier({ from: 'Nowhereia', to: 'Colonia', capacity: 25000, mass: 25000, capacityUsed: 0 })
+    ).rejects.toThrow('Unknown system: Nowhereia');
+    expect(calls.some((c) => c.url.includes('/fleetcarrier/route'))).toBe(false);
+  });
+});

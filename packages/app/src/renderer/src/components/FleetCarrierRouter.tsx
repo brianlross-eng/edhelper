@@ -1,50 +1,65 @@
 import { useEffect, useState } from 'react';
 import type { ShipState } from '@edhelper/engine';
-import type { ActiveNeutronRoute, NeutronRoute, PlotNeutronRequest, PlotNeutronResponse } from '../../../shared/ipc-types';
+import type {
+  ActiveFleetCarrierRoute,
+  FleetCarrierRoute,
+  PlotFleetCarrierRequest,
+  PlotFleetCarrierResponse,
+} from '../../../shared/ipc-types';
 
-export interface NeutronPlotterProps {
+export interface FleetCarrierRouterProps {
   ship: ShipState | null;
-  route: ActiveNeutronRoute | null;
-  onPlot: (req: PlotNeutronRequest) => Promise<PlotNeutronResponse>;
-  onStart: (route: NeutronRoute) => void;
+  route: ActiveFleetCarrierRoute | null;
+  onPlot: (req: PlotFleetCarrierRequest) => Promise<PlotFleetCarrierResponse>;
+  onStart: (route: FleetCarrierRoute) => void;
   onClear: () => void;
   onAnchor: (index: number) => void;
 }
 
 const DESTINATIONS = ['Colonia', 'Sagittarius A*'];
 
-export function NeutronPlotter({ ship, route, onPlot, onStart, onClear, onAnchor }: NeutronPlotterProps) {
+/** Spansh's hardcoded carrier stats (capacity / mass). */
+const CARRIER_TYPES = [
+  { key: 'Fleet', capacity: 25000, mass: 25000 },
+  { key: 'Squadron', capacity: 60000, mass: 15000 },
+] as const;
+
+function badges(wp: FleetCarrierRoute['waypoints'][number]) {
+  return (
+    <>
+      {wp.mustRestock ? <span className="pill-neutron"> RESTOCK {wp.restockAmount} t</span> : null}
+      {wp.pristine ? <span className="pill-neutron"> PRISTINE</span> : wp.hasIcyRing ? <span className="pill-neutron"> ICY RING</span> : null}
+    </>
+  );
+}
+
+export function FleetCarrierRouter({ ship, route, onPlot, onStart, onClear, onAnchor }: FleetCarrierRouterProps) {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
-  const [range, setRange] = useState('');
-  const [efficiency, setEfficiency] = useState('60');
-  const [result, setResult] = useState<NeutronRoute | null>(null);
+  const [carrierType, setCarrierType] = useState<(typeof CARRIER_TYPES)[number]>(CARRIER_TYPES[0]);
+  const [cargoUsed, setCargoUsed] = useState('0');
+  const [result, setResult] = useState<FleetCarrierRoute | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!ship) return;
     setFrom((v) => (v === '' && ship.system ? ship.system : v));
-    setRange((v) => (v === '' && ship.maxJumpRange ? String(ship.maxJumpRange) : v));
   }, [ship]);
 
   async function plot() {
     setBusy(true);
     setError(null);
     setResult(null);
-    const req: PlotNeutronRequest = {
+    const req: PlotFleetCarrierRequest = {
       from: from.trim(),
       to: to.trim(),
-      jumpRange: Number(range) || 0,
-      efficiency: Number(efficiency) || 60,
+      capacity: carrierType.capacity,
+      mass: carrierType.mass,
+      capacityUsed: Math.max(0, Number(cargoUsed) || 0),
     };
     if (!req.from || !req.to) {
       setError('Enter both a start and a destination system.');
-      setBusy(false);
-      return;
-    }
-    if (req.jumpRange <= 0) {
-      setError('Jump range must be positive.');
       setBusy(false);
       return;
     }
@@ -57,21 +72,21 @@ export function NeutronPlotter({ ship, route, onPlot, onStart, onClear, onAnchor
   if (route) {
     return (
       <div>
-        <div className="muted" data-testid="copied" style={{ marginBottom: 10 }}>
+        <div className="muted" data-testid="fc-copied" style={{ marginBottom: 10 }}>
           Next waypoint on clipboard: <b style={{ color: 'var(--white)' }}>{route.copiedSystem ?? '— route complete'}</b>
         </div>
         {route.route.waypoints.map((wp, i) => (
-          <div key={i} className={`hop hop-${route.waypointStatus[i] === 'next' ? 'active' : route.waypointStatus[i]}`} data-testid={`wp-${i}`}>
+          <div key={i} className={`hop hop-${route.waypointStatus[i] === 'next' ? 'active' : route.waypointStatus[i]}`} data-testid={`fc-wp-${i}`}>
             <span className="hop-marker">
               {route.waypointStatus[i] === 'done' ? '✓' : route.waypointStatus[i] === 'next' ? '▶' : '○'}
             </span>
             <span>
               {wp.system}
-              {wp.neutronStar ? <span className="pill-neutron"> NEUTRON</span> : null}
+              {badges(wp)}
             </span>
             <span className="muted">
-              {wp.jumps > 0 ? `${wp.jumps} jumps · ` : ''}
-              {wp.distanceLeft.toFixed(0)} ly left
+              {wp.fuelUsed > 0 ? `${wp.fuelUsed} t · ` : ''}
+              {wp.distanceToGo.toFixed(0)} ly left
             </span>
             <button className="btn secondary" onClick={() => onAnchor(i)}>
               Copy
@@ -80,7 +95,7 @@ export function NeutronPlotter({ ship, route, onPlot, onStart, onClear, onAnchor
         ))}
         <div className="route-summary">
           <span>
-            {route.route.totalJumps} jumps · {route.route.totalDistanceLy.toFixed(0)} ly
+            {route.route.totalJumps} jumps · {route.route.totalDistanceLy.toFixed(0)} ly · {route.route.totalTritium} t tritium
           </span>
           <button className="btn secondary" onClick={onClear}>
             Clear route
@@ -92,6 +107,17 @@ export function NeutronPlotter({ ship, route, onPlot, onStart, onClear, onAnchor
 
   return (
     <div>
+      <div className="checks" style={{ marginBottom: 12 }}>
+        {CARRIER_TYPES.map((t) => (
+          <button
+            key={t.key}
+            className={`tool-tab ${carrierType.key === t.key ? 'active' : ''}`}
+            onClick={() => { setCarrierType(t); setResult(null); setError(null); }}
+          >
+            {t.key}
+          </button>
+        ))}
+      </div>
       <div className="form-grid">
         <div className="field">
           <label>From</label>
@@ -102,12 +128,8 @@ export function NeutronPlotter({ ship, route, onPlot, onStart, onClear, onAnchor
           <input value={to} onChange={(e) => setTo(e.target.value)} />
         </div>
         <div className="field">
-          <label>Jump range (ly)</label>
-          <input value={range} onChange={(e) => setRange(e.target.value)} />
-        </div>
-        <div className="field">
-          <label>Efficiency (%)</label>
-          <input value={efficiency} onChange={(e) => setEfficiency(e.target.value)} />
+          <label>Cargo aboard (t)</label>
+          <input value={cargoUsed} onChange={(e) => setCargoUsed(e.target.value)} />
         </div>
       </div>
       <div className="checks">
@@ -124,20 +146,23 @@ export function NeutronPlotter({ ship, route, onPlot, onStart, onClear, onAnchor
       {result && (
         <div>
           <div className="muted" style={{ margin: '8px 0' }}>
-            {result.waypoints.length} waypoints · {result.totalJumps} jumps · {result.totalDistanceLy.toFixed(0)} ly
+            {result.waypoints.length} waypoints · {result.totalJumps} jumps · {result.totalDistanceLy.toFixed(0)} ly · {result.totalTritium} t tritium to load
           </div>
           {result.waypoints.map((wp, i) => (
-            <div key={i} className="hop" data-testid={`plan-wp-${i}`}>
+            <div key={i} className="hop" data-testid={`fc-plan-wp-${i}`}>
               <span className="hop-marker">○</span>
               <span>
                 {wp.system}
-                {wp.neutronStar ? <span className="pill-neutron"> NEUTRON</span> : null}
+                {badges(wp)}
               </span>
-              <span className="muted">{wp.jumps > 0 ? `${wp.jumps} jumps` : 'start'}</span>
+              <span className="muted">
+                {wp.fuelUsed > 0 ? `${wp.fuelUsed} t · ` : ''}
+                {wp.distanceToGo.toFixed(0)} ly left
+              </span>
             </div>
           ))}
           <div className="route-summary">
-            <span className="muted">Starting replaces any active exploration or fleet carrier route.</span>
+            <span className="muted">Starting replaces any active neutron or exploration route.</span>
             <button className="btn" onClick={() => onStart(result)}>
               START ROUTE
             </button>

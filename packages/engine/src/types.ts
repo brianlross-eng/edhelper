@@ -19,6 +19,7 @@ export type JournalEvent =
   | { type: 'Loadout'; ship: string; cargoCapacity: number; maxJumpRange: number }
   | { type: 'Location'; system: string; docked: boolean; station?: string }
   | { type: 'FSDJump'; system: string }
+  | { type: 'CarrierJump'; system: string }
   | { type: 'Docked'; system: string; station: string }
   | { type: 'Undocked' }
   | { type: 'Cargo'; count: number }

@@ -2,12 +2,16 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, within } from '@testing-library/react';
 import type { ShipState } from '@edhelper/engine';
-import type { ActiveRoute, ActiveNeutronRoute, ActiveExplorationRoute } from '../src/shared/ipc-types';
+import type {
+  ActiveRoute, ActiveNeutronRoute, ActiveExplorationRoute, ActiveFleetCarrierRoute,
+  FleetCarrierRoute, PlotFleetCarrierRequest,
+} from '../src/shared/ipc-types';
 import { CockpitPanel } from '../src/renderer/src/components/CockpitPanel';
 import { RouteChecklist } from '../src/renderer/src/components/RouteChecklist';
 import { TradePlanner } from '../src/renderer/src/components/TradePlanner';
 import { NeutronPlotter } from '../src/renderer/src/components/NeutronPlotter';
 import { ExplorationRouter } from '../src/renderer/src/components/ExplorationRouter';
+import { FleetCarrierRouter } from '../src/renderer/src/components/FleetCarrierRouter';
 import { DataHealthFooter } from '../src/renderer/src/components/DataHealthFooter';
 
 afterEach(cleanup);
@@ -33,7 +37,7 @@ const ROUTE: ActiveRoute = {
 
 describe('CockpitPanel', () => {
   it('shows commander, location, and cargo from ship state', () => {
-    render(<CockpitPanel ship={SHIP} route={null} neutron={null} exploration={null} />);
+    render(<CockpitPanel ship={SHIP} route={null} neutron={null} exploration={null} carrier={null} />);
     expect(screen.getByText('CMDR Bross')).toBeTruthy();
     expect(screen.getByTestId('location').textContent).toContain('Sol · Abraham Lincoln');
     expect(screen.getByTestId('cargo').textContent).toContain('96 / 192 t');
@@ -41,20 +45,20 @@ describe('CockpitPanel', () => {
   });
 
   it('shows the next hop of the active route', () => {
-    render(<CockpitPanel ship={SHIP} route={ROUTE} neutron={null} exploration={null} />);
+    render(<CockpitPanel ship={SHIP} route={ROUTE} neutron={null} exploration={null} carrier={null} />);
     expect(screen.getByText(/Hop 2 of 2/).textContent).toBeTruthy();
     expect(screen.getByText(/Wolf \/ Gamma/)).toBeTruthy();
   });
 
   it('shows completion with actual vs expected profit', () => {
     const done: ActiveRoute = { ...ROUTE, currentHop: 2, hopStatus: ['done', 'done'], actualProfit: 149_000 };
-    render(<CockpitPanel ship={SHIP} route={done} neutron={null} exploration={null} />);
+    render(<CockpitPanel ship={SHIP} route={done} neutron={null} exploration={null} carrier={null} />);
     expect(screen.getByTestId('route-complete').textContent).toContain('149,000');
     expect(screen.getByTestId('route-complete').textContent).toContain('150,000');
   });
 
   it('degrades gracefully with no data', () => {
-    render(<CockpitPanel ship={null} route={null} neutron={null} exploration={null} />);
+    render(<CockpitPanel ship={null} route={null} neutron={null} exploration={null} carrier={null} />);
     expect(screen.getByText('No commander data')).toBeTruthy();
   });
 });
@@ -199,11 +203,21 @@ describe('NeutronPlotter', () => {
     fireEvent.click(screen.getAllByText('Copy')[2]);
     expect(anchored).toBe(2);
   });
+
+  it('notes travel-route exclusivity next to START', async () => {
+    render(
+      <NeutronPlotter ship={SHIP} route={null}
+        onPlot={async () => ({ ok: true, result: NROUTE.route })} onStart={() => {}} onClear={() => {}} onAnchor={() => {}} />
+    );
+    fireEvent.change(screen.getAllByRole('textbox')[1], { target: { value: 'Colonia' } });
+    fireEvent.click(screen.getByText('PLOT ROUTE'));
+    expect(await screen.findByText(/replaces any active exploration or fleet carrier route/)).toBeTruthy();
+  });
 });
 
 describe('CockpitPanel neutron card', () => {
   it('shows the active neutron route summary', () => {
-    render(<CockpitPanel ship={SHIP} route={null} neutron={NROUTE} exploration={null} />);
+    render(<CockpitPanel ship={SHIP} route={null} neutron={NROUTE} exploration={null} carrier={null} />);
     expect(screen.getByTestId('neutron-card').textContent).toContain('Waypoint 2 of 3');
     expect(screen.getByTestId('neutron-card').textContent).toContain('Jackson Sector NN-A b0');
     expect(screen.getByTestId('neutron-card').textContent).toContain('clipboard');
@@ -258,14 +272,91 @@ describe('ExplorationRouter', () => {
     fireEvent.change(screen.getAllByRole('textbox')[0], { target: { value: 'Sol' } });
     fireEvent.change(screen.getAllByRole('textbox')[2], { target: { value: '28' } });
     fireEvent.click(screen.getByText('PLOT ROUTE'));
-    expect(await screen.findByText(/replaces any active neutron route/)).toBeTruthy();
+    expect(await screen.findByText(/replaces any active neutron or fleet carrier route/)).toBeTruthy();
   });
 });
 
 describe('CockpitPanel exploration card', () => {
   it('shows the active exploration route summary', () => {
-    render(<CockpitPanel ship={SHIP} route={null} neutron={null} exploration={XACTIVE} />);
+    render(<CockpitPanel ship={SHIP} route={null} neutron={null} exploration={XACTIVE} carrier={null} />);
     expect(screen.getByTestId('exploration-card').textContent).toContain('Waypoint 2 of 3');
     expect(screen.getByTestId('exploration-card').textContent).toContain('Alpha Centauri');
+  });
+});
+
+const FCROUTE: FleetCarrierRoute = {
+  totalJumps: 2, totalDistanceLy: 1000, totalTritium: 260,
+  waypoints: [
+    { system: 'Sol', jumps: 0, distance: 0, distanceToGo: 1000, fuelUsed: 0, restockAmount: 260, mustRestock: true, hasIcyRing: false, pristine: false },
+    { system: 'Mid', jumps: 1, distance: 500, distanceToGo: 500, fuelUsed: 130, restockAmount: 0, mustRestock: false, hasIcyRing: true, pristine: true },
+    { system: 'End', jumps: 1, distance: 500, distanceToGo: 0, fuelUsed: 130, restockAmount: 0, mustRestock: false, hasIcyRing: false, pristine: false },
+  ],
+};
+
+const FCACTIVE: ActiveFleetCarrierRoute = {
+  route: FCROUTE,
+  currentWaypoint: 1,
+  waypointStatus: ['done', 'next', 'pending'],
+  copiedSystem: 'Mid',
+};
+
+describe('FleetCarrierRouter', () => {
+  it('prefills From, plots, shows tritium totals and badges', async () => {
+    render(
+      <FleetCarrierRouter ship={SHIP} route={null}
+        onPlot={async () => ({ ok: true, result: FCROUTE })} onStart={() => {}} onClear={() => {}} onAnchor={() => {}} />
+    );
+    expect(screen.getByDisplayValue('Sol')).toBeTruthy();
+    fireEvent.change(screen.getAllByRole('textbox')[1], { target: { value: 'End' } });
+    fireEvent.click(screen.getByText('PLOT ROUTE'));
+    expect(await screen.findByText(/260 t tritium/)).toBeTruthy();
+    expect(screen.getByTestId('fc-plan-wp-0').textContent).toContain('RESTOCK 260 t');
+    expect(screen.getByTestId('fc-plan-wp-1').textContent).toContain('PRISTINE');
+    expect(screen.getByText(/replaces any active neutron or exploration route/)).toBeTruthy();
+  });
+
+  it('switching carrier type clears a stale plotted route', async () => {
+    render(
+      <FleetCarrierRouter ship={SHIP} route={null}
+        onPlot={async () => ({ ok: true, result: FCROUTE })} onStart={() => {}} onClear={() => {}} onAnchor={() => {}} />
+    );
+    fireEvent.change(screen.getAllByRole('textbox')[1], { target: { value: 'End' } });
+    fireEvent.click(screen.getByText('PLOT ROUTE'));
+    expect(await screen.findByText(/t tritium to load/)).toBeTruthy();
+    fireEvent.click(screen.getByText('Squadron'));
+    expect(screen.queryByText(/t tritium to load/)).toBeNull();
+  });
+
+  it('carrier type chips set capacity/mass on the request', async () => {
+    let seen: PlotFleetCarrierRequest | null = null;
+    render(
+      <FleetCarrierRouter ship={SHIP} route={null}
+        onPlot={async (req) => { seen = req; return { ok: false, error: 'x' }; }}
+        onStart={() => {}} onClear={() => {}} onAnchor={() => {}} />
+    );
+    fireEvent.change(screen.getAllByRole('textbox')[1], { target: { value: 'End' } });
+    fireEvent.click(screen.getByText('Squadron'));
+    fireEvent.click(screen.getByText('PLOT ROUTE'));
+    await screen.findByText('x');
+    expect(seen).toMatchObject({ capacity: 60000, mass: 15000 });
+  });
+
+  it('renders the active checklist with anchors', () => {
+    let anchored = -1;
+    render(
+      <FleetCarrierRouter ship={SHIP} route={FCACTIVE}
+        onPlot={async () => ({ ok: false, error: 'x' })} onStart={() => {}} onClear={() => {}} onAnchor={(i) => (anchored = i)} />
+    );
+    expect(screen.getByTestId('fc-wp-1').textContent).toContain('▶');
+    fireEvent.click(within(screen.getByTestId('fc-wp-2')).getByText('Copy'));
+    expect(anchored).toBe(2);
+  });
+});
+
+describe('CockpitPanel carrier card', () => {
+  it('shows the active carrier route summary', () => {
+    render(<CockpitPanel ship={SHIP} route={null} neutron={null} exploration={null} carrier={FCACTIVE} />);
+    expect(screen.getByTestId('carrier-card').textContent).toContain('Waypoint 2 of 3');
+    expect(screen.getByTestId('carrier-card').textContent).toContain('Mid');
   });
 });

@@ -86,8 +86,24 @@ beforeAll(async () => {
             ],
           })
         );
+      } else if (req.url === '/fleetcarrier/route') {
+        res.end(JSON.stringify({ job: 'FCJOB', status: 'queued' }));
+      } else if (req.url?.startsWith('/results/FCJOB')) {
+        res.end(
+          JSON.stringify({
+            state: 'completed', status: 'ok',
+            result: { jumps: [
+              { name: 'Sol', distance: 0, distance_to_destination: 1000, fuel_used: 0, restock_amount: 260, must_restock: 1, has_icy_ring: false, is_system_pristine: false },
+              { name: 'Mid', distance: 500, distance_to_destination: 500, fuel_used: 130, restock_amount: 0, must_restock: 0, has_icy_ring: true, is_system_pristine: true },
+              { name: 'End', distance: 500, distance_to_destination: 0, fuel_used: 130, restock_amount: 0, must_restock: 0, has_icy_ring: false, is_system_pristine: false },
+            ] },
+          })
+        );
       } else if (req.url === '/systems/search') {
-        res.end(JSON.stringify({ results: [{ name: 'Lave' }] }));
+        // Echo the queried name (with an id64) so the carrier plotter's exact-name
+        // id64 resolution works for any system; searchSystems only maps `name`.
+        const queried = JSON.parse(body)?.filters?.name?.value ?? 'Lave';
+        res.end(JSON.stringify({ results: [{ name: queried, id64: 42 }] }));
       } else if (req.url === '/stations/search') {
         res.end(JSON.stringify({ results: [{ name: 'Lave Station', system_name: 'Lave' }] }));
       } else {
@@ -227,5 +243,14 @@ describe('engine-host (Spansh + EDDN)', () => {
     expect(result.waypoints).toHaveLength(2);
     expect(result.totalBodies).toBe(1);
     expect(result.totalMappingValue).toBe(700000);
+  });
+
+  it('plots a fleet carrier route end-to-end', async () => {
+    const result = await request('plotFleetCarrier', {
+      from: 'Sol', to: 'End', capacity: 25000, mass: 25000, capacityUsed: 0,
+    });
+    expect(result.waypoints).toHaveLength(3);
+    expect(result.totalJumps).toBe(2);
+    expect(result.totalTritium).toBe(260);
   });
 });

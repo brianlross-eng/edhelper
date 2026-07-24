@@ -43,6 +43,10 @@ export function reduceShipState(state: ShipState, ev: JournalEvent): ShipState {
       return { ...state, system: ev.system, docked: ev.docked, station: ev.docked ? ev.station : undefined };
     case 'FSDJump':
       return { ...state, system: ev.system, docked: false, station: undefined };
+    case 'CarrierJump':
+      // The carrier moved with the player aboard: system changes, but the player
+      // stays docked at the carrier — unlike FSDJump, don't clear docked/station.
+      return { ...state, system: ev.system };
     case 'Docked':
       return { ...state, system: ev.system, docked: true, station: ev.station };
     case 'Undocked':

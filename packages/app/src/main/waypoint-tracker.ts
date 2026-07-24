@@ -5,6 +5,9 @@ import type { WaypointStatus } from '../shared/ipc-types.js';
 export interface WaypointTrackerOptions {
   /** Writes a system name to the clipboard. Injected (Electron clipboard in prod). */
   copy: (text: string) => void;
+  /** Journal event that advances the route. Ship routes use FSDJump (default);
+   *  fleet carrier routes use CarrierJump. */
+  eventType?: 'FSDJump' | 'CarrierJump';
 }
 
 export interface ActiveWaypointRoute<R> {
@@ -16,7 +19,7 @@ export interface ActiveWaypointRoute<R> {
 
 /**
  * Generic waypoint-route tracker: starting copies the first target waypoint;
- * each FSDJump into the current target advances and copies the next; anchor(i)
+ * each matching jump event into the current target advances and copies the next; anchor(i)
  * re-targets after a detour. Emits 'updated' (ActiveWaypointRoute<R> | null).
  */
 export class WaypointTracker<
@@ -72,7 +75,8 @@ export class WaypointTracker<
 
   onJournalEvent(ev: JournalEvent): void {
     if (!this.route || this.current >= this.route.waypoints.length) return;
-    if (ev.type !== 'FSDJump') return;
+    if (ev.type !== 'FSDJump' && ev.type !== 'CarrierJump') return;
+    if (ev.type !== (this.opts.eventType ?? 'FSDJump')) return;
     const target = this.route.waypoints[this.current];
     if (ev.system.toLowerCase() !== target.system.toLowerCase()) return;
     this.current++;
