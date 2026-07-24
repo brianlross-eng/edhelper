@@ -160,6 +160,10 @@ describe('plotExploration', () => {
     const firstWithBodies = route.waypoints.find((w) => w.bodies.length > 0)!;
     expect(firstWithBodies.bodies[0].subtype).toBeTruthy();
     expect(firstWithBodies.bodies[0].scanValue).toBeGreaterThan(0);
+    expect(route.waypoints[0].jumps).toBe(0); // source row normalized
+    const rawFixture = fixture('riches-route-result.json').result;
+    const rawJumpSum = rawFixture.reduce((s: number, w: any) => s + (w.jumps ?? 0), 0);
+    expect(route.totalJumps).toBe(rawJumpSum - (rawFixture[0].jumps ?? 0));
     const submit = calls.find((c) => c.url.includes('/riches/route'))!;
     expect(String(submit.init.body)).toContain('min_value=100000');
     expect(String(submit.init.body)).not.toContain('body_types');

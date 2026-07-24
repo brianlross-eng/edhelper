@@ -348,6 +348,9 @@ export class SpanshClient {
         terraformable: Boolean(b.is_terraformable),
       })),
     }));
+    // Spansh quirk: unlike neutron routes, the exploration source waypoint carries
+    // jumps: 1. Normalize to 0 so trackers and totals treat index 0 as the start row.
+    if (waypoints.length > 0) waypoints[0] = { ...waypoints[0], jumps: 0 };
     const allBodies = waypoints.flatMap((w) => w.bodies);
     return {
       waypoints,
