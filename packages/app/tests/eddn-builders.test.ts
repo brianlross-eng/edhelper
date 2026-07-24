@@ -87,4 +87,28 @@ describe('buildJournalMessage', () => {
       buildJournalMessage({ timestamp: 't', event: 'Scan', BodyName: 'X' }, { StarSystem: null, StarPos: null, SystemAddress: null }, OPTS)
     ).toBeNull();
   });
+
+  it('strips disallowed keys inside Factions entries (real populated-system shape)', () => {
+    const raw = {
+      timestamp: '2026-07-24T02:00:00Z', event: 'FSDJump', StarSystem: 'Lave',
+      StarPos: [75.75, 48.75, 70.75], SystemAddress: 3932277478106,
+      Factions: [
+        {
+          Name: 'Lave Radio Network', FactionState: 'None', Government: 'Cooperative',
+          Influence: 0.5, Allegiance: 'Independent', MyReputation: 93.4,
+          HappiestSystem: true, SquadronFaction: false,
+        },
+      ],
+      Wanted: true,
+    };
+    const env = buildJournalMessage(raw, TRACKED, OPTS)!;
+    expect(env.message.Factions[0].MyReputation).toBeUndefined();
+    expect(env.message.Factions[0].HappiestSystem).toBeUndefined();
+    expect(env.message.Factions[0].SquadronFaction).toBeUndefined();
+    expect(env.message.Factions[0].Name).toBe('Lave Radio Network');
+    expect(env.message.Wanted).toBeUndefined();
+    const valid = validateJournal(env);
+    expect(validateJournal.errors ?? []).toEqual([]);
+    expect(valid).toBe(true);
+  });
 });

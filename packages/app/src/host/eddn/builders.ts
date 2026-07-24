@@ -21,10 +21,12 @@ export interface TrackedPosition {
 /** Journal events EDDN's journal/1 schema accepts and we broadcast. */
 const JOURNAL_EVENTS = new Set(['FSDJump', 'Docked', 'Scan', 'Location']);
 
-/** Personal/transient keys journal/1 requires removed (matches EDMC's strip list). */
+/** Keys journal/1 disallows, top-level and nested (matches the schema's own
+ * disallow lists — stripped() applies this recursively, covering Factions[] entries). */
 const STRIP_KEYS = new Set([
   'ActiveFine', 'CockpitBreach', 'BoostUsed', 'FuelLevel', 'FuelUsed', 'JumpDist',
-  'Latitude', 'Longitude', 'Wanted',
+  'Latitude', 'Longitude', 'Wanted', 'IsNewEntry', 'NewTraitsDiscovered', 'Traits',
+  'VoucherAmount', 'HappiestSystem', 'HomeSystem', 'MyReputation', 'SquadronFaction',
 ]);
 
 function header(opts: BuilderOpts) {
