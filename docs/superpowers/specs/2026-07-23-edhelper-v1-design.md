@@ -109,6 +109,28 @@ Engine is built and tested before any UI exists:
   quality.
 - Light UI smoke test once the renderer is wired up.
 
+## Validation results (2026-07-24, engine v1 against real data)
+
+- **Dump import**: galaxy_populated.json.gz was 4.24 GB (grown past the 2-3 GB estimate).
+  Imported 142,057 systems / 273,884 stations / 33,380,854 listings in 581 s with
+  0 parse errors and 0 duplicate systems. Resulting DB: 1.45 GB (below the 5-10 GB estimate).
+- **Station classification**: all 45,495 Drake-Class Carriers flagged is_carrier;
+  all planetary/settlement types flagged is_surface ('Planetary Construction Depot'
+  was missing from SURFACE_TYPES — fixed, affects 5 stations at next import).
+- **Journal reading**: real commander read correctly (name, credits, system). Note:
+  on-foot logins report suit names (e.g. "flightsuit") in LoadGame.Ship — treated as an
+  unknown ship (pad-size warning + M default), which is acceptable v1 behavior.
+- **Trade planning**: 3-hop route from Lave Station initially took 221 s; after
+  restructuring the hop query to drive from nearby stations (commit b611b1c) the same
+  command runs in ~1.2 s with an identical route (+4.36 M cr / 87.8 ly on 250k capital).
+  Prices come from the same EDDN pipeline Spansh/Inara use; spot-checking a hop against
+  Inara while playing is still recommended before trusting a route.
+- **EDDN live feed**: connected first try; over 5 minutes applied 93 station market
+  updates and skipped 25 unknown stations (~79% applied — the skips are stations newer
+  than the dump, mostly relocated fleet carriers; expected). The station-id = marketId
+  assumption is confirmed. Zero EDDN-created commodity rows → EDDN names and Spansh
+  symbols reconcile exactly.
+
 ## Open questions deferred to implementation planning
 
 - Exact beam-search parameters (K, scoring weights) — tuned against fixtures.
