@@ -5,12 +5,22 @@ import type { JournalEvent, ShipState, TradeRoute } from '@edhelper/engine';
 import { EngineClient } from './engine-client.js';
 import { RouteTracker } from './route-tracker.js';
 import { NeutronTracker } from './neutron-tracker.js';
+import { WaypointTracker } from './waypoint-tracker.js';
 import { loadSettings, saveSettings } from './settings.js';
-import type { DataHealth, PlotTradeRequest, NeutronRoute } from '../shared/ipc-types.js';
+import type {
+  DataHealth,
+  PlotTradeRequest,
+  NeutronRoute,
+  ExplorationRoute,
+  ExplorationWaypoint,
+} from '../shared/ipc-types.js';
 
 const watcher = new JournalWatcher(process.env.EDHELPER_JOURNAL_DIR ?? DEFAULT_JOURNAL_DIR);
 const tracker = new RouteTracker();
 const neutron = new NeutronTracker({ copy: (text) => clipboard.writeText(text) });
+const exploration = new WaypointTracker<ExplorationWaypoint, ExplorationRoute>({
+  copy: (text) => clipboard.writeText(text),
+});
 // The engine host runs under plain Node (native deps use the system ABI, not Electron's).
 const engine = new EngineClient({
   command: process.env.EDHELPER_NODE ?? 'node',
@@ -47,6 +57,7 @@ app.whenReady().then(() => {
   watcher.on('event', (ev: JournalEvent) => {
     tracker.onJournalEvent(ev);
     neutron.onJournalEvent(ev);
+    exploration.onJournalEvent(ev);
   });
   void watcher.start();
   // Registered after start() on purpose: the initial synchronous replay of the
@@ -63,6 +74,7 @@ app.whenReady().then(() => {
   });
   tracker.on('updated', (r) => win?.webContents.send('route:updated', r));
   neutron.on('updated', (r) => win?.webContents.send('neutron:updated', r));
+  exploration.on('updated', (r) => win?.webContents.send('exploration:updated', r));
   engine.on('event:eddn', (e) => win?.webContents.send('health:eddn', e));
   engine.on('event:spansh', (s) => win?.webContents.send('health:spansh', s));
   engine.on('event:fatal', (d: unknown) => {
@@ -103,13 +115,33 @@ app.whenReady().then(() => {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
   });
-  ipcMain.handle('neutron:start', (_e, route: NeutronRoute) => neutron.start(route));
+  ipcMain.handle('neutron:start', (_e, route: NeutronRoute) => {
+    exploration.clear(); // travel routes are mutually exclusive
+    return neutron.start(route);
+  });
   ipcMain.handle('neutron:clear', () => {
     neutron.clear();
     return null;
   });
   ipcMain.handle('neutron:get', () => neutron.get());
   ipcMain.handle('neutron:anchor', (_e, index: number) => neutron.anchor(index));
+  ipcMain.handle('exploration:plot', async (_e, req) => {
+    try {
+      return { ok: true, result: await engine.request('plotExploration', req) };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  });
+  ipcMain.handle('exploration:start', (_e, route: ExplorationRoute) => {
+    neutron.clear(); // travel routes are mutually exclusive (both own the clipboard)
+    return exploration.start(route);
+  });
+  ipcMain.handle('exploration:clear', () => {
+    exploration.clear();
+    return null;
+  });
+  ipcMain.handle('exploration:get', () => exploration.get());
+  ipcMain.handle('exploration:anchor', (_e, index: number) => exploration.anchor(index));
   ipcMain.handle('eddn:set', async (_e, enabled: boolean) => {
     saveSettings(app.getPath('userData'), { eddnUpload: enabled });
     try {

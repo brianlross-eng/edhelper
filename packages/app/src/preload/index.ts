@@ -26,4 +26,10 @@ contextBridge.exposeInMainWorld('edhelper', {
   getNeutronRoute: () => ipcRenderer.invoke('neutron:get'),
   anchorNeutronRoute: (index: number) => ipcRenderer.invoke('neutron:anchor', index),
   onNeutronUpdated: subscribe('neutron:updated'),
+  plotExploration: (req: unknown) => ipcRenderer.invoke('exploration:plot', req),
+  startExplorationRoute: (route: unknown) => ipcRenderer.invoke('exploration:start', route),
+  clearExplorationRoute: () => ipcRenderer.invoke('exploration:clear'),
+  getExplorationRoute: () => ipcRenderer.invoke('exploration:get'),
+  anchorExplorationRoute: (index: number) => ipcRenderer.invoke('exploration:anchor', index),
+  onExplorationUpdated: subscribe('exploration:updated'),
 });

@@ -4,7 +4,7 @@ import { LineCodec, encodeLine, decodeLine } from './rpc.js';
 import { SpanshClient } from './spansh-client.js';
 import { buildCommodityMessage, buildJournalMessage, type TrackedPosition } from './eddn/builders.js';
 import { EddnUploader } from './eddn/uploader.js';
-import type { PlotNeutronRequest, PlotTradeRequest, RpcRequest } from '../shared/ipc-types.js';
+import type { PlotExplorationRequest, PlotNeutronRequest, PlotTradeRequest, RpcRequest } from '../shared/ipc-types.js';
 
 const SOFTWARE = { softwareName: 'EDHelper', softwareVersion: '0.1.0' };
 
@@ -62,6 +62,8 @@ async function handle(req: RpcRequest): Promise<unknown> {
       return spansh.plotTrade(req.params as PlotTradeRequest);
     case 'plotNeutron':
       return spansh.plotNeutron(req.params as PlotNeutronRequest);
+    case 'plotExploration':
+      return spansh.plotExploration(req.params as PlotExplorationRequest);
     case 'searchSystems':
       return spansh.searchSystems((req.params as { query: string }).query);
     case 'searchStations':

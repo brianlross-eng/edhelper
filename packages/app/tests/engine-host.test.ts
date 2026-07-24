@@ -71,6 +71,21 @@ beforeAll(async () => {
             },
           })
         );
+      } else if (req.url === '/riches/route') {
+        res.end(JSON.stringify({ job: 'xjob-1' }));
+      } else if (req.url?.startsWith('/results/xjob-1')) {
+        res.end(
+          JSON.stringify({
+            state: 'completed',
+            result: [
+              { name: 'Sol', id64: '10477373803', jumps: 0, bodies: [] },
+              {
+                name: 'Alpha Centauri', id64: '3', jumps: 4,
+                bodies: [{ name: 'A 1', subtype: 'Earth-like world', distance_to_arrival: 900, estimated_scan_value: 300000, estimated_mapping_value: 700000, is_terraformable: false }],
+              },
+            ],
+          })
+        );
       } else if (req.url === '/systems/search') {
         res.end(JSON.stringify({ results: [{ name: 'Lave' }] }));
       } else if (req.url === '/stations/search') {
@@ -202,5 +217,15 @@ describe('engine-host (Spansh + EDDN)', () => {
     expect(result.waypoints).toHaveLength(2);
     expect(result.waypoints[1].neutronStar).toBe(true);
     expect(result.totalJumps).toBe(5);
+  });
+
+  it('plots an exploration route via the Spansh mock', async () => {
+    const result = await request('plotExploration', {
+      from: 'Sol', jumpRange: 28.5, radius: 25, maxResults: 50, maxDistance: 50000,
+      minValue: 100000, bodyTypes: [], loop: false, avoidThargoids: false,
+    });
+    expect(result.waypoints).toHaveLength(2);
+    expect(result.totalBodies).toBe(1);
+    expect(result.totalMappingValue).toBe(700000);
   });
 });
