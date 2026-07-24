@@ -63,7 +63,7 @@ export function NeutronPlotter({ ship, route, onPlot, onStart, onClear, onAnchor
         {route.route.waypoints.map((wp, i) => (
           <div key={i} className={`hop hop-${route.waypointStatus[i] === 'next' ? 'active' : route.waypointStatus[i]}`} data-testid={`wp-${i}`}>
             <span className="hop-marker">
-              {route.waypointStatus[i] === 'done' ? '✓' : route.waypointStatus[i] === 'next' ? '▶' : i}
+              {route.waypointStatus[i] === 'done' ? '✓' : route.waypointStatus[i] === 'next' ? '▶' : '○'}
             </span>
             <span>
               {wp.system}
@@ -128,7 +128,7 @@ export function NeutronPlotter({ ship, route, onPlot, onStart, onClear, onAnchor
           </div>
           {result.waypoints.map((wp, i) => (
             <div key={i} className="hop" data-testid={`plan-wp-${i}`}>
-              <span className="hop-marker">{i}</span>
+              <span className="hop-marker">○</span>
               <span>
                 {wp.system}
                 {wp.neutronStar ? <span className="pill-neutron"> NEUTRON</span> : null}

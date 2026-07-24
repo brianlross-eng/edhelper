@@ -72,6 +72,7 @@ button { font: inherit; }
 }
 .hop-active { background: var(--card-hi); border: 1px solid var(--accent); }
 .hop-done { opacity: 0.55; }
+.hop-pending { opacity: 0.8; }
 .hop-marker { color: var(--accent); font-weight: 700; text-align: center; }
 .profit { color: var(--green); font-weight: 600; }
 .route-summary { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
