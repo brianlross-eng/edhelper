@@ -89,3 +89,20 @@ describe('engine-host', () => {
     await expect(request('nope')).rejects.toThrow(/unknown method/);
   });
 });
+
+describe('engine-host startup failure', () => {
+  it('emits a fatal event and exits when the db cannot open', async () => {
+    const badChild = spawn(process.execPath, [TSX, HOST], {
+      env: { ...process.env, EDHELPER_DB: join(tmpdir(), 'edh-definitely-missing-dir', 'nested', 'ed.db') },
+      stdio: ['pipe', 'pipe', 'inherit'],
+    });
+    const events: any[] = [];
+    const localCodec = new LineCodec();
+    badChild.stdout!.on('data', (chunk) => {
+      for (const line of localCodec.push(chunk)) events.push(JSON.parse(line));
+    });
+    const code = await new Promise<number | null>((resolve) => badChild.on('exit', resolve));
+    expect(code).toBe(1);
+    expect(events.some((e) => e.event === 'fatal' && /cannot open database/.test(e.data.error))).toBe(true);
+  }, 30_000);
+});

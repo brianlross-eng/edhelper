@@ -11,7 +11,22 @@ import { LineCodec, encodeLine, decodeLine } from './rpc.js';
 import type { DataHealth, EddnHealth, PlotTradeRequest, PlotTradeResult, RpcRequest } from '../shared/ipc-types.js';
 
 const DB_PATH = process.env.EDHELPER_DB ?? 'D:\\EDHelper\\data\\ed.db';
-const db: DB = openDatabase(DB_PATH);
+
+function openDbOrDie(path: string): DB {
+  try {
+    return openDatabase(path);
+  } catch (err) {
+    // Emit a structured line so the parent can surface the reason, then exit non-zero.
+    process.stdout.write(
+      encodeLine({
+        event: 'fatal',
+        data: { error: `cannot open database at ${path}: ${err instanceof Error ? err.message : String(err)}` },
+      })
+    );
+    process.exit(1);
+  }
+}
+const db: DB = openDbOrDie(DB_PATH);
 
 const eddn: EddnHealth = { status: 'starting', applied: 0, skipped: 0 };
 let eddnClient: EddnClient | null = null;
@@ -67,9 +82,13 @@ function startEddn(): void {
     send({ event: 'eddn', data: { ...eddn } });
   });
   eddnClient.on('commodity', (msg) => {
-    const result = applyEddnCommodity(db, msg);
-    if (result.applied) eddn.applied++;
-    else eddn.skipped++;
+    try {
+      const result = applyEddnCommodity(db, msg);
+      if (result.applied) eddn.applied++;
+      else eddn.skipped++;
+    } catch {
+      eddn.skipped++; // malformed payload — count it, don't let it look like a dead socket
+    }
     if ((eddn.applied + eddn.skipped) % 10 === 0) send({ event: 'eddn', data: { ...eddn } });
   });
   void eddnClient.start();
