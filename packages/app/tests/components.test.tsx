@@ -128,4 +128,13 @@ describe('DataHealthFooter', () => {
     expect(screen.getByTestId('dump-age').textContent).toContain('import-dump');
     expect(screen.getByTestId('journal').textContent).toContain('No journal found');
   });
+
+  it('surfaces engine fatal errors', () => {
+    render(
+      <DataHealthFooter
+        health={{ dbPath: '', dumpImportedAt: null, eddn: { status: 'stopped', applied: 0, skipped: 0 }, journalFile: null, error: 'cannot open database at X' }}
+      />
+    );
+    expect(screen.getByTestId('engine-error').textContent).toContain('cannot open database');
+  });
 });

@@ -13,6 +13,12 @@ export function DataHealthFooter({ health }: { health: DataHealth | null }) {
   const eddnClass = health?.eddn.status === 'connected' ? 'green' : health?.eddn.status === 'stopped' ? 'red' : 'yellow';
   return (
     <footer className="footer">
+      {health?.error && (
+        <>
+          <span className="dot red" />
+          <span data-testid="engine-error" className="error" style={{ margin: 0 }}>{health.error}</span>
+        </>
+      )}
       <span className={`dot ${ageClass}`} />
       <span data-testid="dump-age">
         {age === null

@@ -58,6 +58,8 @@ export interface DataHealth {
   dumpImportedAt: string | null;
   eddn: EddnHealth;
   journalFile: string | null;
+  /** Set when the engine host failed fatally (e.g. unopenable database). */
+  error?: string;
 }
 
 /** ------- Renderer-facing API (window.edhelper) ------- */

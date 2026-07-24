@@ -55,10 +55,11 @@ app.whenReady().then(() => {
       return { ...health, journalFile: watcher.journalFile };
     } catch {
       return {
-        dbPath: engine.fatalError ?? '',
+        dbPath: '',
         dumpImportedAt: null,
         eddn: { status: 'stopped', applied: 0, skipped: 0 },
         journalFile: watcher.journalFile,
+        error: engine.fatalError ?? 'engine host unavailable',
       };
     }
   });
