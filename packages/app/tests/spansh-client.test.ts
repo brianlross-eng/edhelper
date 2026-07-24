@@ -160,6 +160,9 @@ describe('plotExploration', () => {
     const firstWithBodies = route.waypoints.find((w) => w.bodies.length > 0)!;
     expect(firstWithBodies.bodies[0].subtype).toBeTruthy();
     expect(firstWithBodies.bodies[0].scanValue).toBeGreaterThan(0);
+    // Regression pin: non-exobiology routes stay landmark-free (no keys at all).
+    expect(route.totalLandmarkValue).toBeUndefined();
+    expect('landmarkValue' in firstWithBodies.bodies[0]).toBe(false);
     expect(route.waypoints[0].jumps).toBe(0); // source row normalized
     const rawFixture = fixture('riches-route-result.json').result;
     const rawJumpSum = rawFixture.reduce((s: number, w: any) => s + (w.jumps ?? 0), 0);
@@ -307,6 +310,15 @@ describe('plotTourist', () => {
       client.plotTourist({ source: 'X', destinations: ['Y'], range: 30, loop: false })
     ).rejects.toThrow('no such system');
     expect(calls.some((c) => c.url.includes('/results/'))).toBe(false);
+  });
+
+  it('rejects an empty destination list before fetching', async () => {
+    const { fn, calls } = fakeFetch({});
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    await expect(
+      client.plotTourist({ source: 'Sol', destinations: [], range: 30, loop: true })
+    ).rejects.toThrow('At least one destination is required');
+    expect(calls.length).toBe(0);
   });
 });
 

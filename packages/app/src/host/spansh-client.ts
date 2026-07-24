@@ -358,9 +358,12 @@ export class SpanshClient {
         scanValue: b.estimated_scan_value ?? 0,
         mappingValue: b.estimated_mapping_value ?? 0,
         terraformable: Boolean(b.is_terraformable),
-        // Exobiology responses only — riches-family bodies lack these keys and
-        // keep their exact previous shape (no landmark fields at all).
-        ...(b.landmark_value !== undefined
+        // Exobiology responses only — keyed on the landmarks ARRAY, not
+        // landmark_value: live riches-family bodies also carry a landmark_value
+        // key (null on almost all, occasionally a real number — see the riches
+        // fixture's 1,000,000 outlier) but never landmarks[], and
+        // non-exobiology routes must stay landmark-free.
+        ...(b.landmarks !== undefined
           ? {
               landmarkValue: b.landmark_value ?? 0,
               landmarks: (b.landmarks ?? []).map((l: any) => ({
@@ -495,6 +498,7 @@ export class SpanshClient {
    *    source row) — id64 is ignored entirely by the mapping below.
    */
   async plotTourist(req: PlotTouristRequest): Promise<TouristRoute> {
+    if (req.destinations.length === 0) throw new Error('At least one destination is required');
     const form = new URLSearchParams({
       source: req.source,
       final_destination: '',
@@ -551,7 +555,9 @@ export class SpanshClient {
    *  - GET {base}/results/{job} -> riches-style flat waypoint array (result.result IS
    *    the array): { name, id64 (string — read it, never `id`), jumps, x, y, z,
    *    bodies: [...] }. Bodies carry the riches fields plus landmark_value and
-   *    landmarks[] { type, subtype, count, value }. QUIRK: landmark_value ≠
+   *    landmarks[] { type, subtype, count, value }. NOTE: landmarks[] is the
+   *    exobiology discriminator — riches-family bodies also carry landmark_value
+   *    (null on almost all) but never landmarks[]. QUIRK: landmark_value ≠
    *    sum(landmarks[].value) (35,275,300 vs 31,945,700 on the fixture) — display
    *    both, derive neither. Source waypoint carries jumps: 1 (normalized to 0 by
    *    mapExplorationResult, same as riches). NO aggregate totals — summed client-side.
