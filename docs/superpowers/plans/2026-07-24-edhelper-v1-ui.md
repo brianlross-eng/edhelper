@@ -1005,7 +1005,7 @@ describe('EngineClient', () => {
   }, 20_000);
 
   it('resolves typed results', async () => {
-    const id = await client.request<number | null>('resolveStation', { system: 'Sol', station: 'Beta' });
+    const id = await client.request<number | null>('resolveStation', { system: 'LHS 20', station: 'Beta' });
     expect(id).toBe(1002);
   }, 20_000);
 });
