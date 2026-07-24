@@ -36,6 +36,7 @@ const SURFACE_TYPES = new Set([
   'Planetary Port',
   'Settlement',
   'Odyssey Settlement',
+  'Planetary Construction Depot',
 ]);
 
 function padSizeOf(pads: any): PadSize | null {

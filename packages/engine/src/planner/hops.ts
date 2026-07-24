@@ -72,16 +72,19 @@ export function findCandidateHops(db: DB, fromStationId: number, c: HopConstrain
               buy.buy_price AS buyPrice, buy.supply AS supply,
               sell.sell_price AS sellPrice, sell.demand AS demand,
               CASE st.pad_size WHEN 'L' THEN 3 WHEN 'M' THEN 2 WHEN 'S' THEN 1 ELSE 0 END AS padRank
-       FROM listings buy
-       JOIN listings sell ON sell.commodity_id = buy.commodity_id
-       JOIN stations st   ON st.id = sell.station_id
-       JOIN systems sy    ON sy.id = st.system_id
-       JOIN commodities co ON co.id = buy.commodity_id
-       WHERE buy.station_id = ?
+       FROM temp.nearby nb
+       CROSS JOIN stations st
+       CROSS JOIN listings sell
+       CROSS JOIN listings buy
+       JOIN systems sy ON sy.id = st.system_id
+       JOIN commodities co ON co.id = sell.commodity_id
+       WHERE st.system_id = nb.id
+         AND sell.station_id = st.id
+         AND buy.station_id = ?
+         AND buy.commodity_id = sell.commodity_id
+         AND st.id != buy.station_id
          AND buy.buy_price > 0 AND buy.supply >= ?
          AND sell.demand >= ? AND sell.sell_price > buy.buy_price
-         AND st.system_id IN (SELECT id FROM temp.nearby)
-         AND st.id != buy.station_id
          ${conditions.join('\n         ')}`
     )
     .all(...params) as any[];
