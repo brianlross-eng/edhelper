@@ -17,5 +17,9 @@ export function loadSettings(dir: string): Settings {
 }
 
 export function saveSettings(dir: string, settings: Settings): void {
-  writeFileSync(join(dir, 'settings.json'), JSON.stringify(settings, null, 2));
+  try {
+    writeFileSync(join(dir, 'settings.json'), JSON.stringify(settings, null, 2));
+  } catch (err) {
+    console.error('[settings] failed to persist:', err);
+  }
 }

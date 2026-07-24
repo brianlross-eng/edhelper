@@ -35,18 +35,23 @@ function createWindow(): void {
 app.whenReady().then(() => {
   engine.start();
   const settings = loadSettings(app.getPath('userData'));
-  void engine.request('setEddnUpload', { enabled: settings.eddnUpload }).catch(() => {});
+  void engine
+    .request('setEddnUpload', { enabled: settings.eddnUpload })
+    .catch((err) => console.error('[eddn] failed to apply persisted toggle at boot:', err));
   watcher.on('state', (s: ShipState) => {
     tracker.onShipState(s);
     win?.webContents.send('ship:state', s);
   });
   watcher.on('event', (ev: JournalEvent) => tracker.onJournalEvent(ev));
+  void watcher.start();
+  // Registered after start() on purpose: the initial synchronous replay of the
+  // existing journal must NOT be re-broadcast to EDDN — only live events from
+  // later polls are forwarded. ('state'/'event' stay registered before start.)
   watcher.on('raw', (raw: unknown) => {
     void engine
       .request('journalEvent', { raw, journalDir: process.env.EDHELPER_JOURNAL_DIR ?? DEFAULT_JOURNAL_DIR }, 30_000)
       .catch(() => {});
   });
-  void watcher.start();
   tracker.on('updated', (r) => win?.webContents.send('route:updated', r));
   engine.on('event:eddn', (e) => win?.webContents.send('health:eddn', e));
   engine.on('event:spansh', (s) => win?.webContents.send('health:spansh', s));
@@ -83,7 +88,12 @@ app.whenReady().then(() => {
   ipcMain.handle('route:get', () => tracker.get());
   ipcMain.handle('eddn:set', async (_e, enabled: boolean) => {
     saveSettings(app.getPath('userData'), { eddnUpload: enabled });
-    return engine.request('setEddnUpload', { enabled });
+    try {
+      return await engine.request('setEddnUpload', { enabled });
+    } catch (err) {
+      console.error('[eddn] failed to apply toggle:', err);
+      throw err;
+    }
   });
 
   createWindow();
