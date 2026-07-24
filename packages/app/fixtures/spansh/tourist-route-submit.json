@@ -1,0 +1,19 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://spansh.co.uk/api/tourist/route",
+    "encoding": "application/x-www-form-urlencoded",
+    "form": {
+      "source": "Sol",
+      "destination": ["Alpha Centauri", "Barnard's Star", "Sirius"],
+      "final_destination": "",
+      "range": "30",
+      "loop": "1"
+    },
+    "notes": "source/destination take system NAMES (not id64s). destination is a repeated form key (jQuery traditional:true), one per destination system, key name is SINGULAR 'destination' even though the site controller property is 'destinations'. final_destination is sent as an empty string when unset (jQuery serializes null as ''); when set it pins the last stop. loop=1 (site default) returns the route to source at the end. The parameters echo on /api/results/{job} renames destination->destinations."
+  },
+  "response": {
+    "status": 202,
+    "body": {"job": "7D982B70-8779-11F1-B346-9A1EFF2E72B8", "status": "queued"}
+  }
+}
