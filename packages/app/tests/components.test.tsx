@@ -203,6 +203,16 @@ describe('NeutronPlotter', () => {
     fireEvent.click(screen.getAllByText('Copy')[2]);
     expect(anchored).toBe(2);
   });
+
+  it('notes travel-route exclusivity next to START', async () => {
+    render(
+      <NeutronPlotter ship={SHIP} route={null}
+        onPlot={async () => ({ ok: true, result: NROUTE.route })} onStart={() => {}} onClear={() => {}} onAnchor={() => {}} />
+    );
+    fireEvent.change(screen.getAllByRole('textbox')[1], { target: { value: 'Colonia' } });
+    fireEvent.click(screen.getByText('PLOT ROUTE'));
+    expect(await screen.findByText(/replaces any active exploration or fleet carrier route/)).toBeTruthy();
+  });
 });
 
 describe('CockpitPanel neutron card', () => {
@@ -300,9 +310,21 @@ describe('FleetCarrierRouter', () => {
     fireEvent.change(screen.getAllByRole('textbox')[1], { target: { value: 'End' } });
     fireEvent.click(screen.getByText('PLOT ROUTE'));
     expect(await screen.findByText(/260 t tritium/)).toBeTruthy();
-    expect(screen.getByTestId('fc-plan-wp-0').textContent).toContain('RESTOCK');
+    expect(screen.getByTestId('fc-plan-wp-0').textContent).toContain('RESTOCK 260 t');
     expect(screen.getByTestId('fc-plan-wp-1').textContent).toContain('PRISTINE');
     expect(screen.getByText(/replaces any active neutron or exploration route/)).toBeTruthy();
+  });
+
+  it('switching carrier type clears a stale plotted route', async () => {
+    render(
+      <FleetCarrierRouter ship={SHIP} route={null}
+        onPlot={async () => ({ ok: true, result: FCROUTE })} onStart={() => {}} onClear={() => {}} onAnchor={() => {}} />
+    );
+    fireEvent.change(screen.getAllByRole('textbox')[1], { target: { value: 'End' } });
+    fireEvent.click(screen.getByText('PLOT ROUTE'));
+    expect(await screen.findByText(/t tritium to load/)).toBeTruthy();
+    fireEvent.click(screen.getByText('Squadron'));
+    expect(screen.queryByText(/t tritium to load/)).toBeNull();
   });
 
   it('carrier type chips set capacity/mass on the request', async () => {

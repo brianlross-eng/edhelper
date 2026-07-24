@@ -27,7 +27,7 @@ const CARRIER_TYPES = [
 function badges(wp: FleetCarrierRoute['waypoints'][number]) {
   return (
     <>
-      {wp.mustRestock ? <span className="pill-neutron"> RESTOCK</span> : null}
+      {wp.mustRestock ? <span className="pill-neutron"> RESTOCK {wp.restockAmount} t</span> : null}
       {wp.pristine ? <span className="pill-neutron"> PRISTINE</span> : wp.hasIcyRing ? <span className="pill-neutron"> ICY RING</span> : null}
     </>
   );
@@ -112,7 +112,7 @@ export function FleetCarrierRouter({ ship, route, onPlot, onStart, onClear, onAn
           <button
             key={t.key}
             className={`tool-tab ${carrierType.key === t.key ? 'active' : ''}`}
-            onClick={() => setCarrierType(t)}
+            onClick={() => { setCarrierType(t); setResult(null); setError(null); }}
           >
             {t.key}
           </button>
