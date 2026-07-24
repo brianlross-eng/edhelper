@@ -45,6 +45,7 @@ export class EddnUploader {
     return { enabled: this._enabled, sent: this._counters.sent, dropped: this._counters.dropped, queued: this.queue.length };
   }
 
+  /** Disable clears the queue; a message already dispatched to the gateway finishes its POST. */
   setEnabled(enabled: boolean): void {
     this._enabled = enabled;
     if (!enabled) this.queue = [];

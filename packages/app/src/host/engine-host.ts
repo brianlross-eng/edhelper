@@ -1,97 +1,70 @@
-import {
-  openDatabase,
-  EddnClient,
-  applyEddnCommodity,
-  planRoute,
-  estimateRouteMinutes,
-  type DB,
-  type PlanOptions,
-} from '@edhelper/engine';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { LineCodec, encodeLine, decodeLine } from './rpc.js';
-import type { DataHealth, EddnHealth, PlotTradeRequest, PlotTradeResult, RpcRequest } from '../shared/ipc-types.js';
+import { SpanshClient } from './spansh-client.js';
+import { buildCommodityMessage, buildJournalMessage, type TrackedPosition } from './eddn/builders.js';
+import { EddnUploader } from './eddn/uploader.js';
+import type { PlotTradeRequest, RpcRequest } from '../shared/ipc-types.js';
 
-const DB_PATH = process.env.EDHELPER_DB ?? 'D:\\EDHelper\\data\\ed.db';
+const SOFTWARE = { softwareName: 'EDHelper', softwareVersion: '0.1.0' };
 
-function openDbOrDie(path: string): DB {
-  try {
-    return openDatabase(path);
-  } catch (err) {
-    // Emit a structured line so the parent can surface the reason, then exit non-zero.
-    process.stdout.write(
-      encodeLine({
-        event: 'fatal',
-        data: { error: `cannot open database at ${path}: ${err instanceof Error ? err.message : String(err)}` },
-      })
-    );
-    process.exit(1);
-  }
-}
-const db: DB = openDbOrDie(DB_PATH);
+const spansh = new SpanshClient();
+const uploader = new EddnUploader();
 
-const eddn: EddnHealth = { status: 'starting', applied: 0, skipped: 0 };
-let eddnClient: EddnClient | null = null;
+let commander = 'unknown';
+const tracked: TrackedPosition = { StarSystem: null, StarPos: null, SystemAddress: null };
 
 function send(msg: unknown): void {
   process.stdout.write(encodeLine(msg));
 }
 
-function resolveStation(system: string, station: string): number | null {
-  const row = db
-    .prepare(
-      `SELECT st.id FROM stations st JOIN systems sy ON sy.id = st.system_id
-       WHERE sy.name = ? COLLATE NOCASE AND st.name = ? COLLATE NOCASE`
-    )
-    .get(system, station) as { id: number } | undefined;
-  return row?.id ?? null;
-}
+uploader.onChange((c) => send({ event: 'eddn', data: c }));
 
-function getDataHealth(): DataHealth {
-  const meta = db.prepare("SELECT value FROM meta WHERE key = 'dump_imported_at'").get() as
-    | { value: string }
-    | undefined;
-  // journalFile is filled in by the Electron main process, which owns the watcher.
-  return { dbPath: DB_PATH, dumpImportedAt: meta?.value ?? null, eddn: { ...eddn }, journalFile: null };
-}
-
-function plotTrade(req: PlotTradeRequest): PlotTradeResult {
-  const startStationId = resolveStation(req.fromSystem, req.fromStation);
-  if (startStationId === null) throw new Error(`station not found: ${req.fromSystem}/${req.fromStation}`);
-  const opts: PlanOptions = {
-    startStationId,
-    cargoCapacity: req.cargoCapacity,
-    capital: req.capital,
-    padSize: req.padSize,
-    maxHopDistance: req.maxHopDistance,
-    maxHops: req.maxHops,
-    minSupply: req.minSupply,
-    minDemand: req.minDemand,
-    allowSurface: req.allowSurface,
-    allowCarriers: req.allowCarriers,
-    maxDistFromStar: req.maxDistFromStar,
-    maxDataAgeDays: req.maxDataAgeDays,
-  };
-  const route = planRoute(db, opts);
-  return { route, etaMinutes: estimateRouteMinutes(route, req.shipJumpRange ?? 0) };
-}
-
-function startEddn(): void {
-  if (eddnClient) return;
-  eddnClient = new EddnClient();
-  eddnClient.on('status', (s: EddnHealth['status']) => {
-    eddn.status = s;
-    send({ event: 'eddn', data: { ...eddn } });
-  });
-  eddnClient.on('commodity', (msg) => {
+function handleJournalEvent(raw: any, journalDir: string | undefined): void {
+  if (raw.event === 'LoadGame' && raw.Commander) commander = String(raw.Commander);
+  if ((raw.event === 'FSDJump' || raw.event === 'Location') && raw.StarSystem) {
+    tracked.StarSystem = raw.StarSystem;
+    tracked.StarPos = raw.StarPos ?? tracked.StarPos;
+    tracked.SystemAddress = raw.SystemAddress ?? tracked.SystemAddress;
+  }
+  const opts = { uploaderID: commander, ...SOFTWARE };
+  if (raw.event === 'Market' && journalDir) {
     try {
-      const result = applyEddnCommodity(db, msg);
-      if (result.applied) eddn.applied++;
-      else eddn.skipped++;
+      const market = JSON.parse(readFileSync(join(journalDir, 'Market.json'), 'utf8'));
+      const env = buildCommodityMessage(market, opts);
+      if (env) uploader.enqueue(env);
     } catch {
-      eddn.skipped++; // malformed payload — count it, don't let it look like a dead socket
+      // Market.json unreadable/not yet written — skip this snapshot.
     }
-    if ((eddn.applied + eddn.skipped) % 10 === 0) send({ event: 'eddn', data: { ...eddn } });
-  });
-  void eddnClient.start();
+    return;
+  }
+  const env = buildJournalMessage(raw, tracked, opts);
+  if (env) uploader.enqueue(env);
+}
+
+async function handle(req: RpcRequest): Promise<unknown> {
+  switch (req.method) {
+    case 'ping':
+      return 'pong';
+    case 'getDataHealth':
+      return { spansh: spansh.health, eddn: uploader.counters, journalFile: null };
+    case 'plotTrade':
+      return spansh.plotTrade(req.params as PlotTradeRequest);
+    case 'searchSystems':
+      return spansh.searchSystems((req.params as { query: string }).query);
+    case 'searchStations':
+      return spansh.searchStations((req.params as { query: string }).query);
+    case 'journalEvent': {
+      const p = req.params as { raw: any; journalDir?: string };
+      handleJournalEvent(p.raw, p.journalDir);
+      return true;
+    }
+    case 'setEddnUpload':
+      uploader.setEnabled((req.params as { enabled: boolean }).enabled);
+      return uploader.counters;
+    default:
+      throw new Error(`unknown method: ${req.method}`);
+  }
 }
 
 const codec = new LineCodec();
@@ -99,36 +72,11 @@ process.stdin.on('data', (chunk) => {
   for (const line of codec.push(chunk)) {
     const req = decodeLine<RpcRequest>(line);
     if (!req || typeof req.id !== 'number') continue;
-    try {
-      let result: unknown = null;
-      switch (req.method) {
-        case 'ping':
-          result = 'pong';
-          break;
-        case 'getDataHealth':
-          result = getDataHealth();
-          break;
-        case 'resolveStation': {
-          const p = req.params as { system: string; station: string };
-          result = resolveStation(p.system, p.station);
-          break;
-        }
-        case 'plotTrade':
-          result = plotTrade(req.params as PlotTradeRequest);
-          break;
-        case 'startEddn':
-          startEddn();
-          result = true;
-          break;
-        default:
-          throw new Error(`unknown method: ${req.method}`);
-      }
-      send({ id: req.id, ok: true, result });
-    } catch (err) {
-      send({ id: req.id, ok: false, error: err instanceof Error ? err.message : String(err) });
-    }
+    handle(req)
+      .then((result) => send({ id: req.id, ok: true, result }))
+      .catch((err) => send({ id: req.id, ok: false, error: err instanceof Error ? err.message : String(err) }));
   }
 });
 process.stdin.on('end', () => process.exit(0));
 
-send({ event: 'ready', data: { dbPath: DB_PATH } });
+send({ event: 'ready', data: { spansh: spansh.health } });
