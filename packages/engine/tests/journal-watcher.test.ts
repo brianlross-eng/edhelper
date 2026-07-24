@@ -74,4 +74,18 @@ describe('JournalWatcher', () => {
     expect(events.some((e) => e.type === 'LoadGame')).toBe(true);
     expect(watcher.journalFile).toContain('Journal.2026-07-24T010000.01.log');
   });
+
+  it('emits raw journal objects for every JSON line with an event field', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'edh-journal-'));
+    writeFileSync(
+      join(dir, 'Journal.2026-07-24T020000.01.log'),
+      LOAD + '{"timestamp":"t","event":"Music","MusicTrack":"NoTrack"}\n' + 'not json\n'
+    );
+    watcher = new JournalWatcher(dir, { pollMs: 50 });
+    const raws: any[] = [];
+    watcher.on('raw', (r: unknown) => raws.push(r));
+    await watcher.start();
+    expect(raws.map((r) => r.event)).toEqual(['LoadGame', 'Music']);
+    expect(raws[0].Commander).toBe('Bross'); // full object, not the parsed subset
+  });
 });

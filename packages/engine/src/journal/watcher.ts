@@ -90,6 +90,15 @@ export class JournalWatcher extends EventEmitter {
       this.partial = lines.pop() ?? '';
       let changed = false;
       for (const line of lines) {
+        const t = line.trim();
+        if (t !== '') {
+          try {
+            const raw = JSON.parse(t);
+            if (raw && typeof raw.event === 'string') this.emit('raw', raw);
+          } catch {
+            // non-JSON line — ignore
+          }
+        }
         const ev = parseJournalLine(line);
         if (ev) {
           this.state = reduceShipState(this.state, ev);
