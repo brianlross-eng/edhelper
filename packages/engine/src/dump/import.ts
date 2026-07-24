@@ -8,6 +8,7 @@ export interface ImportStats {
   systems: number;
   stations: number;
   listings: number;
+  duplicateSystems: number;
   parseErrors: number;
 }
 
@@ -31,6 +32,7 @@ export async function importDump(
 
   const insSystem = db.prepare('INSERT OR IGNORE INTO systems (id64, name, x, y, z) VALUES (?, ?, ?, ?, ?)');
   const insRtree = db.prepare('INSERT INTO systems_rtree (id, minX, maxX, minY, maxY, minZ, maxZ) VALUES (?, ?, ?, ?, ?, ?, ?)');
+  const getSystemId = db.prepare('SELECT id FROM systems WHERE id64 = ?');
   const insStation = db.prepare(
     `INSERT OR REPLACE INTO stations (id, system_id, name, type, pad_size, dist_from_star, is_surface, is_carrier, market_updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
@@ -42,16 +44,22 @@ export async function importDump(
      VALUES (?, ?, ?, ?, ?, ?)`
   );
 
-  const stats: ImportStats = { systems: 0, stations: 0, listings: 0, parseErrors: 0 };
+  const stats: ImportStats = { systems: 0, stations: 0, listings: 0, duplicateSystems: 0, parseErrors: 0 };
   const commodityIds = new Map<string, number>();
 
   const insertBatch = db.transaction((batch: DumpSystem[]) => {
     for (const sys of batch) {
       const info = insSystem.run(sys.id64, sys.name, sys.x, sys.y, sys.z);
-      if (info.changes === 0) continue;
-      const systemId = Number(info.lastInsertRowid);
-      insRtree.run(systemId, sys.x, sys.x, sys.y, sys.y, sys.z, sys.z);
-      stats.systems++;
+      let systemId: number;
+      if (info.changes === 0) {
+        // Repeated id64 in the dump: keep the first system row, still import its stations.
+        stats.duplicateSystems++;
+        systemId = (getSystemId.get(sys.id64) as any).id;
+      } else {
+        systemId = Number(info.lastInsertRowid);
+        insRtree.run(systemId, sys.x, sys.x, sys.y, sys.y, sys.z, sys.z);
+        stats.systems++;
+      }
       for (const st of sys.stations) {
         insStation.run(
           st.id, systemId, st.name, st.type, st.padSize, st.distToArrival,
@@ -73,10 +81,11 @@ export async function importDump(
   });
 
   try {
-    const rl = createInterface({
-      input: createReadStream(dumpPath).pipe(createGunzip()),
-      crlfDelay: Infinity,
-    });
+    const fileStream = createReadStream(dumpPath);
+    const gunzip = createGunzip();
+    // .pipe() does not forward source errors; route them into the stream readline watches.
+    fileStream.on('error', (err) => gunzip.destroy(err));
+    const rl = createInterface({ input: fileStream.pipe(gunzip), crlfDelay: Infinity });
     let batch: DumpSystem[] = [];
     for await (const line of rl) {
       const sys = parseDumpLine(line);
@@ -94,6 +103,10 @@ export async function importDump(
     }
     if (batch.length > 0) insertBatch(batch);
 
+    if (stats.systems === 0) {
+      throw new Error('import produced no systems; refusing to replace the database');
+    }
+
     db.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES ('dump_imported_at', ?)").run(
       new Date().toISOString()
     );
@@ -104,14 +117,27 @@ export async function importDump(
     throw err;
   }
 
-  // Swap: back up the live DB, move staging into place, drop the backup.
+  // Swap: move the live DB aside, move staging into place, drop the backup only on success.
+  // If a previous run crashed after moving the live DB aside, dbPath won't exist and the
+  // old .bak (the only good copy) is deliberately left untouched below.
   const backupPath = dbPath + '.bak';
-  rmSync(backupPath, { force: true });
-  rmSync(dbPath + '-wal', { force: true });
-  rmSync(dbPath + '-shm', { force: true });
-  if (existsSync(dbPath)) renameSync(dbPath, backupPath);
-  renameSync(stagingPath, dbPath);
-  rmSync(backupPath, { force: true });
+  const hadLive = existsSync(dbPath);
+  try {
+    if (hadLive) {
+      rmSync(dbPath + '-wal', { force: true });
+      rmSync(dbPath + '-shm', { force: true });
+      rmSync(backupPath, { force: true });
+      renameSync(dbPath, backupPath);
+    }
+    renameSync(stagingPath, dbPath);
+  } catch (err) {
+    if (hadLive && !existsSync(dbPath) && existsSync(backupPath)) {
+      renameSync(backupPath, dbPath); // restore the live DB we moved aside
+    }
+    rmSync(stagingPath, { force: true });
+    throw err;
+  }
+  if (hadLive) rmSync(backupPath, { force: true });
 
   onProgress?.({ ...stats, done: true });
   return stats;

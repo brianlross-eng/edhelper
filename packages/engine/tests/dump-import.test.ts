@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { gzipSync } from 'node:zlib';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { importDump } from '../src/dump/import.js';
@@ -64,6 +64,41 @@ describe('importDump', () => {
     const dbPath = join(dir, 'ed.db');
     await importDump(dumpPath, dbPath);
     await importDump(dumpPath, dbPath); // must not throw or duplicate
+    const db = openDatabase(dbPath);
+    expect((db.prepare('SELECT COUNT(*) AS n FROM systems').get() as any).n).toBe(2);
+    db.close();
+  });
+
+  it('rejects cleanly when the dump file is missing', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'edh-'));
+    const dbPath = join(dir, 'ed.db');
+    await expect(importDump(join(dir, 'nope.json.gz'), dbPath)).rejects.toThrow();
+    expect(existsSync(dbPath)).toBe(false);
+    expect(existsSync(dbPath + '.importing')).toBe(false);
+  });
+
+  it('leaves the live database intact when an import fails mid-stream', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'edh-'));
+    const dumpPath = makeDump(dir);
+    const dbPath = join(dir, 'ed.db');
+    await importDump(dumpPath, dbPath);
+    const good = readFileSync(dumpPath);
+    const badPath = join(dir, 'bad.json.gz');
+    writeFileSync(badPath, Buffer.concat([good.subarray(0, 20), Buffer.from('garbage-not-deflate-data')]));
+    await expect(importDump(badPath, dbPath)).rejects.toThrow();
+    const db = openDatabase(dbPath);
+    expect((db.prepare('SELECT COUNT(*) AS n FROM systems').get() as any).n).toBe(2);
+    db.close();
+    expect(existsSync(dbPath + '.importing')).toBe(false);
+  });
+
+  it('refuses to swap when the dump contains no systems', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'edh-'));
+    const dumpPath = makeDump(dir);
+    const dbPath = join(dir, 'ed.db');
+    await importDump(dumpPath, dbPath);
+    writeFileSync(join(dir, 'empty.json.gz'), gzipSync('[\n]\n'));
+    await expect(importDump(join(dir, 'empty.json.gz'), dbPath)).rejects.toThrow();
     const db = openDatabase(dbPath);
     expect((db.prepare('SELECT COUNT(*) AS n FROM systems').get() as any).n).toBe(2);
     db.close();
