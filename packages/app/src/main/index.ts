@@ -36,13 +36,12 @@ app.whenReady().then(() => {
   void engine.request('startEddn').catch(() => {
     /* engine host restarts re-trigger EDDN via the next getDataHealth poll */
   });
-  void watcher.start();
-
   watcher.on('state', (s: ShipState) => {
     tracker.onShipState(s);
     win?.webContents.send('ship:state', s);
   });
   watcher.on('event', (ev: JournalEvent) => tracker.onJournalEvent(ev));
+  void watcher.start();
   tracker.on('updated', (r) => win?.webContents.send('route:updated', r));
   engine.on('event:eddn', (e) => win?.webContents.send('health:eddn', e));
   engine.on('event:fatal', (d: unknown) => {
