@@ -15,7 +15,7 @@ export function parseJournalLine(line: string): JournalEvent | null {
         type: 'LoadGame',
         commander: raw.Commander ?? '',
         credits: raw.Credits ?? 0,
-        ship: String(raw.Ship ?? '').toLowerCase(),
+        ship: raw.Ship ? String(raw.Ship).toLowerCase() : undefined,
         shipName: raw.ShipName,
       };
     case 'Loadout':
@@ -39,6 +39,8 @@ export function parseJournalLine(line: string): JournalEvent | null {
     case 'Undocked':
       return { type: 'Undocked' };
     case 'Cargo':
+      // SRV cargo events would otherwise zero out the ship's hold reading.
+      if (raw.Vessel !== undefined && raw.Vessel !== 'Ship') return null;
       return { type: 'Cargo', count: raw.Count ?? 0 };
     default:
       return null;

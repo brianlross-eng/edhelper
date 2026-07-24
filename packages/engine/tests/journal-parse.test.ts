@@ -39,4 +39,14 @@ describe('parseJournalLine', () => {
     expect(parseJournalLine('')).toBeNull();
     expect(parseJournalLine('{broken')).toBeNull();
   });
+
+  it('handles on-foot and SRV edge cases', () => {
+    expect(parseJournalLine('{"timestamp":"t","event":"Cargo","Vessel":"SRV","Count":2}')).toBeNull();
+    expect(
+      parseJournalLine('{"timestamp":"t","event":"LoadGame","Commander":"Bross","Credits":5}')
+    ).toEqual({ type: 'LoadGame', commander: 'Bross', credits: 5, ship: undefined, shipName: undefined });
+    expect(parseJournalLine('{"timestamp":"t","event":"Location","StarSystem":"Sol","Docked":false}')).toEqual({
+      type: 'Location', system: 'Sol', docked: false, station: undefined,
+    });
+  });
 });

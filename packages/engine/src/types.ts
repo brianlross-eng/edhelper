@@ -15,7 +15,7 @@ export interface ShipState {
 }
 
 export type JournalEvent =
-  | { type: 'LoadGame'; commander: string; credits: number; ship: string; shipName?: string }
+  | { type: 'LoadGame'; commander: string; credits: number; ship?: string; shipName?: string }
   | { type: 'Loadout'; ship: string; cargoCapacity: number; maxJumpRange: number }
   | { type: 'Location'; system: string; docked: boolean; station?: string }
   | { type: 'FSDJump'; system: string }
