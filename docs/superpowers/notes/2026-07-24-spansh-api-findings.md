@@ -182,3 +182,122 @@ against the fixture-driven unit test's synthetic 429.
 | Hop `commodities[]` — `buy_price`/`sell_price` | **Amended** — nested under `source_commodity`/`destination_commodity`, mapping code fixed |
 | `systems/search` request + response shape | **Match**, no amendment |
 | `stations/search` request + response shape | **Match**, no amendment |
+
+## Neutron route (`/api/route`)
+
+Probed for v1.2 (branch `neutron-v1.2`), same tooling/politeness rules as above:
+`curl.exe -A "EDHelper-dev/0.1"`, single sequential requests, 5-10s poll gaps.
+
+### Accepted params
+
+Unlike the v1.1 trade-route probe, **this one worked on the first try** — no silent-ignore
+trap. Submitted exactly the plan's Step 1 params, form-urlencoded:
+
+| Field sent | Value used | Notes |
+|---|---|---|
+| `efficiency` | `60` | percent, matches plan |
+| `range` | `28.5` | ly, matches plan |
+| `from` | `Lave` | matches plan |
+| `to` | `Colonia` | matches plan |
+
+No frontend-bundle cross-check was needed this time: the job completed with a real,
+sane, 231-waypoint route that terminates exactly at Colonia with `distance_left: 0`, which
+is conclusive proof the param names were right (an empty/garbage result would have been the
+tell, per the v1.1 trap — that didn't happen here).
+
+**Submit response** (`202 Accepted`): `{"job":"6BCBC684-8753-11F1-BA8B-DA7FE462C157","status":"queued"}`
+— same envelope shape as trade route's submit response. Saved verbatim as
+`packages/app/fixtures/spansh/neutron-route-submit.json`.
+
+### Response walkthrough
+
+**Pending** (`GET /api/results/{job}` while running):
+```json
+{"job":"...","parameters":{"efficiency":"60","from":"Lave","range":"28.5","to":"Colonia","via":[]},"state":"started","status":"queued"}
+```
+Same pattern as trade route: pending `state` is `"started"` (not `"queued"` as the plan's
+declared shape guessed), top-level `status` stays `"queued"`, and the `result` key is entirely
+absent until completion. The echoed `parameters` includes a `via: []` we never sent — a
+default the API always includes for waypoint-pinning, harmless.
+
+**Completed**, saved verbatim as `packages/app/fixtures/spansh/neutron-route-result.json`:
+```json
+{
+  "job": "...", "parameters": {...}, "state": "completed", "status": "ok",
+  "result": {
+    "source_system": "Lave", "destination_system": "Colonia",
+    "distance": 21971.8854878593, "efficiency": "60", "range": "28.5", "job": "...", "via": [],
+    "system_jumps": [ /* 231 entries */ ],
+    "total_jumps": 230
+  }
+}
+```
+The `result` container has more fields than the plan's DECLARED SHAPE guessed
+(`source_system`/`destination_system`/`distance`/`efficiency`/`range`/`job`/`via`, in addition
+to the expected `system_jumps`/`total_jumps`) — all harmless extras, ignored by the mapping
+code, no amendment needed for parsing.
+
+**Per-waypoint fields** — matches the plan's declared fields exactly, plus harmless extras:
+```json
+{ "system": "Lave", "distance_jumped": 0, "distance_left": 21971.8854878593,
+  "jumps": 0, "neutron_star": false, "id64": 633742594786, "x": 75.75, "y": 48.75, "z": 70.75 }
+```
+`system`/`distance_jumped`/`distance_left`/`jumps`/`neutron_star` — **match**. `id64`/`x`/`y`/`z`
+are extra (not in the declared shape) and unused by the mapping — harmless.
+
+**Source-row confirmation:** the source system (`Lave`) IS entry 0 of `system_jumps`, with
+`jumps: 0` and `distance_jumped: 0`, and `distance_left` equal to the full route distance
+(21971.885 ly) — **confirms Task 3's start-index assumption exactly** (231 waypoints,
+`waypoints[0].jumps === 0`, so `NeutronTracker.start()`'s `length > 1 && waypoints[0].jumps === 0
+? 1 : 0` correctly lands on index 1 as the first real target). The final entry is `Colonia`
+with `distance_left: 0`.
+
+**Critical discrepancy — `total_jumps` is a leg count, not a jump count:** the raw `result`
+has `total_jumps: 230`, and there are 231 `system_jumps` entries — so `total_jumps` is exactly
+`system_jumps.length - 1`, i.e. the number of route legs (one per neutron-boosted waypoint,
+plus the final leg into the destination). It is **not** the sum of every waypoint's own
+`jumps` field (the count of real hyperspace jumps needed to physically cover that leg, since a
+neutron supercharge only extends the *final* jump of a leg — reaching a distant neutron star
+still takes several ordinary jumps first). On this fixture, summing every `jumps` value gives
+**416** real hyperspace jumps versus the raw `total_jumps` of **230** — nearly double. Task 2's
+originally declared `mapNeutronResult` (`raw.total_jumps ?? waypoints.reduce(...)`) would have
+trusted the misleading 230 figure since `raw.total_jumps` is always present on a completed job.
+**The plan has been amended** to always derive `NeutronRoute.totalJumps` by summing
+`waypoints[].jumps`, never trusting `raw.total_jumps` directly. This does not break the
+existing test expectations in the plan (Task 2's test only checks `> 0`; Task 4's hand-written
+host-mock has `total_jumps: 5` with per-waypoint `jumps` `[0, 5]`, which happens to sum to the
+same 5, so it keeps passing unchanged).
+
+`totalDistanceLy` (sum of `distanceJumped` across waypoints, as originally declared) is
+**confirmed correct as-is**: it totals 26313.9 ly — the real cumulative distance flown — which
+is intentionally larger than the top-level `result.distance` field (21971.9 ly, the
+straight-line source→destination distance) because the neutron highway zigzags off the direct
+line. No amendment needed for that field.
+
+### Latency
+
+- `POST /route` submission: sub-second response (202 immediately), same as trade route.
+- `GET /results/{job}` while pending: sub-second per call.
+- Job completion time for `Lave → Colonia` (231 waypoints, 230 legs, 416 real jumps, ~22,000 ly
+  straight-line): completed somewhere between the 18s and 28s cumulative poll marks (polled at
+  0s, +5s, +5s, +8s, +10s — completed on the last poll), so roughly **20-28 seconds** for a
+  very large, cross-galaxy route. Comparable to (a bit faster than) the ~19-20s trade-route job
+  from the v1.1 probe, despite covering a vastly larger distance — neutron routing appears cheap
+  to compute even for huge hop counts.
+- No rate-limit headers observed (`Server: nginx/1.31.0`, `Date`, `Content-Type`,
+  `Content-Length`, `Connection: keep-alive`, plus `Vary`/`Strict-Transport-Security`/
+  `X-Frame-Options` on this endpoint) — consistent with the v1.1 findings, no `X-RateLimit-*`
+  or `Retry-After` seen.
+
+### Summary: DECLARED SHAPE match/amend verdict (neutron)
+
+| Item | Verdict |
+|---|---|
+| `POST /route` request params (`efficiency`/`range`/`from`/`to`) | **Match** — worked first try, no silent-ignore trap |
+| Submit response shape (`{"job": ..., "status": "queued"}`, 202) | **Match** (extra `status` field harmless) |
+| Pending envelope `state` value | **Amended (docs only)** — `"started"` not `"queued"`, same as trade route; completion check code unaffected |
+| Completed envelope / `result` container extra fields | **Amended (docs only)** — extra harmless fields noted, no code impact |
+| Per-waypoint fields (`system`/`distance_jumped`/`distance_left`/`jumps`/`neutron_star`) | **Match** exactly |
+| Source system at `system_jumps[0]` with `jumps: 0` | **Match** — confirms Task 3's start-index assumption |
+| `total_jumps` → `NeutronRoute.totalJumps` mapping | **Amended (code)** — raw field is a leg count (230), not the real jump count (416); mapping changed to always sum per-waypoint `jumps` |
+| `totalDistanceLy` (sum of `distanceJumped`) | **Match**, confirmed correct as originally written |
