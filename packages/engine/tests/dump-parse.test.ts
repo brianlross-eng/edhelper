@@ -69,4 +69,14 @@ describe('parseDumpLine', () => {
     expect(parseDumpLine(']')).toBeNull();
     expect(parseDumpLine('not json,')).toBeNull();
   });
+
+  it('returns null when id64 or coords are missing/invalid', () => {
+    expect(parseDumpLine('{"name":"NoId","coords":{"x":1,"y":2,"z":3}}')).toBeNull();
+    expect(parseDumpLine('{"id64":5,"name":"BadCoords","coords":{"x":"a","y":2,"z":3}}')).toBeNull();
+  });
+
+  it('picks the top-level id64 even when a nested id64 appears first', () => {
+    const line = '{"nested":{"id64":11},"id64":18446744072653869161,"name":"Big","coords":{"x":1,"y":2,"z":3},"stations":[]}';
+    expect(parseDumpLine(line)!.id64).toBe('18446744072653869161');
+  });
 });

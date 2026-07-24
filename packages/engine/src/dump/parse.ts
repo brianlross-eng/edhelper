@@ -45,6 +45,22 @@ function padSizeOf(pads: any): PadSize | null {
   return null;
 }
 
+/**
+ * JSON.parse rounds integers above 2^53, so recover id64's exact digits from
+ * the raw text. When the parsed value was rounded, pick the "id64" occurrence
+ * whose digits parse back to the same rounded number (guards against a nested
+ * "id64" appearing earlier in the line).
+ */
+function extractId64(text: string, rawId: unknown): string | null {
+  if (typeof rawId === 'string') return rawId;
+  if (typeof rawId !== 'number') return null;
+  if (Number.isSafeInteger(rawId)) return String(rawId);
+  for (const m of text.matchAll(/"id64"\s*:\s*(\d+)/g)) {
+    if (Number(m[1]) === rawId) return m[1];
+  }
+  return String(rawId);
+}
+
 export function parseDumpLine(line: string): DumpSystem | null {
   let t = line.trim();
   if (t === '[' || t === ']' || t === '') return null;
@@ -56,9 +72,11 @@ export function parseDumpLine(line: string): DumpSystem | null {
     return null;
   }
   if (!raw || typeof raw.name !== 'string' || !raw.coords) return null;
+  const { x, y, z } = raw.coords;
+  if (typeof x !== 'number' || typeof y !== 'number' || typeof z !== 'number') return null;
 
-  // JSON.parse rounds integers above 2^53, so take id64's digits from the raw text.
-  const idMatch = /"id64"\s*:\s*(\d+)/.exec(t);
+  const id64 = extractId64(t, raw.id64);
+  if (id64 === null) return null;
 
   const stations: DumpStation[] = [];
   for (const st of raw.stations ?? []) {
@@ -85,11 +103,9 @@ export function parseDumpLine(line: string): DumpSystem | null {
   }
 
   return {
-    id64: idMatch ? idMatch[1] : String(raw.id64),
+    id64,
     name: raw.name,
-    x: raw.coords.x,
-    y: raw.coords.y,
-    z: raw.coords.z,
+    x, y, z,
     stations,
   };
 }
