@@ -408,6 +408,9 @@ export function insertSystem(db: DB, s: SystemInput): number {
   return id;
 }
 
+/** systems_rtree stores float32 boxes; pad the query so boundary systems aren't dropped. */
+const RTREE_EPS = 0.01;
+
 export function systemsWithinRadius(
   db: DB,
   x: number,
@@ -415,6 +418,7 @@ export function systemsWithinRadius(
   z: number,
   radiusLy: number
 ): NearbySystem[] {
+  const r = radiusLy + RTREE_EPS;
   const rows = db
     .prepare(
       `SELECT s.id, s.name, s.x, s.y, s.z
@@ -423,7 +427,7 @@ export function systemsWithinRadius(
          AND r.minY >= ? AND r.maxY <= ?
          AND r.minZ >= ? AND r.maxZ <= ?`
     )
-    .all(x - radiusLy, x + radiusLy, y - radiusLy, y + radiusLy, z - radiusLy, z + radiusLy) as any[];
+    .all(x - r, x + r, y - r, y + r, z - r, z + r) as any[];
   const out: NearbySystem[] = [];
   for (const r of rows) {
     const d = Math.sqrt((r.x - x) ** 2 + (r.y - y) ** 2 + (r.z - z) ** 2);
@@ -520,6 +524,11 @@ describe('parseDumpLine', () => {
     expect(sys.stations[1].padSize).toBe('M');
   });
 
+  it('preserves id64 digits beyond 2^53', () => {
+    const line = '{"id64":18446744072653869161,"name":"Big","coords":{"x":1,"y":2,"z":3},"stations":[]}';
+    expect(parseDumpLine(line)!.id64).toBe('18446744072653869161');
+  });
+
   it('returns null for array brackets and junk', () => {
     expect(parseDumpLine('[')).toBeNull();
     expect(parseDumpLine(']')).toBeNull();
@@ -596,6 +605,9 @@ export function parseDumpLine(line: string): DumpSystem | null {
   }
   if (!raw || typeof raw.name !== 'string' || !raw.coords) return null;
 
+  // JSON.parse rounds integers above 2^53, so take id64's digits from the raw text.
+  const idMatch = /"id64"\s*:\s*(\d+)/.exec(t);
+
   const stations: DumpStation[] = [];
   for (const st of raw.stations ?? []) {
     if (!st.market || typeof st.id !== 'number') continue; // trade planner only needs markets
@@ -621,7 +633,7 @@ export function parseDumpLine(line: string): DumpSystem | null {
   }
 
   return {
-    id64: String(raw.id64),
+    id64: idMatch ? idMatch[1] : String(raw.id64),
     name: raw.name,
     x: raw.coords.x,
     y: raw.coords.y,
