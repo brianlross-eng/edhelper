@@ -90,6 +90,7 @@ describe('TradePlanner', () => {
     expect(screen.getByDisplayValue('192')).toBeTruthy();
     expect(screen.getByDisplayValue('7200000')).toBeTruthy();
     expect((screen.getByDisplayValue('Large') as HTMLSelectElement).value).toBe('L');
+    // minSupply/minDemand fields removed in v1.1
   });
 
   it('shows the checklist instead of the form while a route is active', () => {
@@ -101,40 +102,53 @@ describe('TradePlanner', () => {
   });
 });
 
+const HEALTH_OK = {
+  spansh: { reachable: true, lastSuccessAt: '2026-07-24T05:00:00Z', lastError: null },
+  eddn: { enabled: true, sent: 42, dropped: 1, queued: 0 },
+  journalFile: 'C:/journals/Journal.log',
+};
+
 describe('DataHealthFooter', () => {
-  it('shows dump age, EDDN status, and journal state', () => {
-    const twoDaysAgo = new Date(Date.now() - 2.5 * 86_400_000).toISOString();
-    render(
-      <DataHealthFooter
-        health={{
-          dbPath: 'x', dumpImportedAt: twoDaysAgo,
-          eddn: { status: 'connected', applied: 42, skipped: 3 },
-          journalFile: 'C:/journals/Journal.log',
-        }}
-      />
-    );
-    expect(screen.getByTestId('dump-age').textContent).toContain('2d old');
-    expect(screen.getByTestId('eddn').textContent).toContain('connected');
+  it('shows Spansh, broadcast, and journal state', () => {
+    render(<DataHealthFooter health={HEALTH_OK} onToggleEddn={() => {}} />);
+    expect(screen.getByTestId('spansh').textContent).toContain('Spansh');
+    expect(screen.getByTestId('spansh').textContent).not.toContain('unreachable');
+    expect(screen.getByTestId('eddn').textContent).toContain('Broadcasting');
     expect(screen.getByTestId('eddn').textContent).toContain('42');
     expect(screen.getByTestId('journal').textContent).toContain('Journal linked');
   });
 
-  it('points at the CLI when no dump was imported', () => {
+  it('shows unreachable Spansh and broadcast-off states, and toggles on click', () => {
+    let toggled: boolean | null = null;
     render(
       <DataHealthFooter
-        health={{ dbPath: 'x', dumpImportedAt: null, eddn: { status: 'starting', applied: 0, skipped: 0 }, journalFile: null }}
+        health={{
+          spansh: { reachable: false, lastSuccessAt: null, lastError: 'timeout' },
+          eddn: { enabled: false, sent: 0, dropped: 0, queued: 0 },
+          journalFile: null,
+        }}
+        onToggleEddn={(next) => (toggled = next)}
       />
     );
-    expect(screen.getByTestId('dump-age').textContent).toContain('import-dump');
+    expect(screen.getByTestId('spansh').textContent).toContain('unreachable');
+    expect(screen.getByTestId('eddn').textContent).toContain('Broadcast off');
     expect(screen.getByTestId('journal').textContent).toContain('No journal found');
+    fireEvent.click(screen.getByTestId('eddn'));
+    expect(toggled).toBe(true);
   });
 
   it('surfaces engine fatal errors', () => {
     render(
       <DataHealthFooter
-        health={{ dbPath: '', dumpImportedAt: null, eddn: { status: 'stopped', applied: 0, skipped: 0 }, journalFile: null, error: 'cannot open database at X' }}
+        health={{
+          spansh: { reachable: false, lastSuccessAt: null, lastError: 'x' },
+          eddn: { enabled: false, sent: 0, dropped: 0, queued: 0 },
+          journalFile: null,
+          error: 'cannot open database at X',
+        }}
+        onToggleEddn={() => {}}
       />
     );
-    expect(screen.getByTestId('engine-error').textContent).toContain('cannot open database');
+    expect(screen.getByTestId('engine-error').textContent).toContain('cannot open');
   });
 });

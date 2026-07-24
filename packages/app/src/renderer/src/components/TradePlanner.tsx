@@ -20,8 +20,6 @@ export function TradePlanner({ ship, route, onPlot, onStart, onClear }: TradePla
   const [padTouched, setPadTouched] = useState(false);
   const [range, setRange] = useState('40');
   const [hops, setHops] = useState('4');
-  const [minSupply, setMinSupply] = useState('100');
-  const [minDemand, setMinDemand] = useState('100');
   const [surface, setSurface] = useState(false);
   const [carriers, setCarriers] = useState(false);
   const [maxAge, setMaxAge] = useState('');
@@ -51,8 +49,6 @@ export function TradePlanner({ ship, route, onPlot, onStart, onClear }: TradePla
       padSize: pad,
       maxHopDistance: Number(range) || 40,
       maxHops: Number(hops) || 4,
-      minSupply: Number(minSupply) || 0,
-      minDemand: Number(minDemand) || 0,
       allowSurface: surface,
       allowCarriers: carriers,
       maxDataAgeDays: Number.isFinite(Number(maxAge)) && maxAge.trim() !== '' ? Number(maxAge) : undefined,
@@ -120,14 +116,6 @@ export function TradePlanner({ ship, route, onPlot, onStart, onClear }: TradePla
         <div className="field">
           <label>Max data age (days)</label>
           <input value={maxAge} onChange={(e) => setMaxAge(e.target.value)} placeholder="any" />
-        </div>
-        <div className="field">
-          <label>Min supply</label>
-          <input value={minSupply} onChange={(e) => setMinSupply(e.target.value)} />
-        </div>
-        <div className="field">
-          <label>Min demand</label>
-          <input value={minDemand} onChange={(e) => setMinDemand(e.target.value)} />
         </div>
       </div>
       <div className="checks">

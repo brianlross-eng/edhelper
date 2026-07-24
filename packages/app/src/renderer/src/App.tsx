@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { ShipState, TradeRoute } from '@edhelper/engine';
-import type { ActiveRoute, DataHealth, EddnHealth } from '../../shared/ipc-types';
+import type { ActiveRoute, DataHealth } from '../../shared/ipc-types';
 import { api } from './api';
 import { CockpitPanel } from './components/CockpitPanel';
 import { TradePlanner } from './components/TradePlanner';
@@ -17,12 +17,14 @@ export function App() {
     void api.getDataHealth().then(setHealth);
     const un1 = api.onShipState(setShip);
     const un2 = api.onRouteUpdated(setRoute);
-    const un3 = api.onEddn((e: EddnHealth) => setHealth((h) => (h ? { ...h, eddn: e } : h)));
+    const un3 = api.onEddn((e) => setHealth((h) => (h ? { ...h, eddn: e } : h)));
+    const un4 = api.onSpansh((s) => setHealth((h) => (h ? { ...h, spansh: s } : h)));
     const t = setInterval(() => void api.getDataHealth().then(setHealth), 60_000);
     return () => {
       un1();
       un2();
       un3();
+      un4();
       clearInterval(t);
     };
   }, []);
@@ -40,7 +42,10 @@ export function App() {
           onClear={() => void api.clearRoute()}
         />
       </main>
-      <DataHealthFooter health={health} />
+      <DataHealthFooter
+        health={health}
+        onToggleEddn={(next) => void api.setEddnUpload(next).then((e) => setHealth((h) => (h ? { ...h, eddn: e } : h)))}
+      />
     </div>
   );
 }
