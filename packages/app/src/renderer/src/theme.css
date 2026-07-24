@@ -1,0 +1,77 @@
+:root {
+  --bg: #12100d;
+  --panel: #181510;
+  --card: #221c13;
+  --card-hi: #241b0e;
+  --border: #3d3226;
+  --accent: #ffa640;
+  --accent-dim: #2b2315;
+  --text: #d8cdbd;
+  --muted: #9a8f7d;
+  --white: #ffffff;
+  --green: #7dc98f;
+  --yellow: #e8c15a;
+  --red: #e06c5a;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 14px;
+}
+button { font: inherit; }
+.app-grid {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  grid-template-rows: 1fr auto;
+  grid-template-areas: 'cockpit main' 'footer footer';
+  height: 100vh;
+}
+.cockpit { grid-area: cockpit; background: var(--panel); border-right: 1px solid var(--border); padding: 16px; overflow-y: auto; }
+.main-panel { grid-area: main; padding: 16px 20px; overflow-y: auto; }
+.footer {
+  grid-area: footer; display: flex; align-items: center; gap: 8px;
+  background: var(--panel); border-top: 1px solid var(--border); padding: 6px 16px; color: var(--muted); font-size: 12px;
+}
+.footer > span + .dot { margin-left: 16px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: var(--muted); }
+.dot.green { background: var(--green); }
+.dot.yellow { background: var(--yellow); }
+.dot.red { background: var(--red); }
+.label { color: var(--accent); font-size: 10px; letter-spacing: 1px; margin-top: 12px; }
+.muted { color: var(--muted); }
+.cmdr { color: var(--white); font-weight: 600; font-size: 16px; }
+.cargo-bar { background: var(--accent-dim); border-radius: 4px; height: 8px; margin: 4px 0; overflow: hidden; }
+.cargo-fill { background: var(--accent); height: 100%; }
+.route-box { background: var(--card); border-radius: 8px; padding: 10px; margin-top: 14px; }
+.next-hop { color: var(--white); font-weight: 600; }
+.tool-title {
+  display: inline-block; background: var(--accent-dim); color: var(--accent);
+  padding: 3px 14px; border-radius: 12px; margin-bottom: 14px; letter-spacing: 1px; font-size: 12px;
+}
+.form-grid { display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: 10px 14px; margin-bottom: 12px; }
+.field label { display: block; color: var(--muted); font-size: 11px; margin-bottom: 3px; }
+.field input, .field select {
+  width: 100%; background: var(--card); border: 1px solid var(--border); color: var(--text);
+  border-radius: 6px; padding: 6px 8px;
+}
+.field input:focus, .field select:focus { outline: 1px solid var(--accent); }
+.checks { display: flex; gap: 16px; align-items: center; color: var(--muted); margin-bottom: 12px; }
+.btn {
+  background: var(--accent); color: #12100d; border: none; border-radius: 6px;
+  padding: 8px 18px; font-weight: 600; cursor: pointer;
+}
+.btn:disabled { opacity: 0.5; cursor: default; }
+.btn.secondary { background: var(--card-hi); color: var(--accent); border: 1px solid var(--border); }
+.error { color: var(--red); margin: 8px 0; }
+.hop {
+  display: grid; grid-template-columns: 28px 1fr auto auto; gap: 10px; align-items: center;
+  background: var(--panel); border-radius: 8px; padding: 8px 12px; margin-bottom: 6px;
+}
+.hop-active { background: var(--card-hi); border: 1px solid var(--accent); }
+.hop-done { opacity: 0.55; }
+.hop-marker { color: var(--accent); font-weight: 700; text-align: center; }
+.profit { color: var(--green); font-weight: 600; }
+.route-summary { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
