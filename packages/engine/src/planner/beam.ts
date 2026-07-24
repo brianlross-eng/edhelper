@@ -77,7 +77,7 @@ export function planRoute(db: DB, opts: PlanOptions): TradeRoute {
       if (!cur || s.profit > cur.profit) bestPerStation.set(s.stationId, s);
     }
     beam = [...bestPerStation.values()].sort((a, b) => b.profit - a.profit).slice(0, beamWidth);
-    if (beam[0].profit > best.profit) best = beam[0];
+    if (beam.length > 0 && beam[0].profit > best.profit) best = beam[0];
   }
 
   return { hops: best.hops, totalProfit: best.profit, totalDistanceLy: best.distance };
