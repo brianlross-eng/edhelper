@@ -116,7 +116,7 @@ export class SpanshClient {
       requires_large_pad: req.padSize === 'L' ? '1' : '0',
       allow_planetary: req.allowSurface ? '1' : '0',
       allow_prohibited: '0',
-      allow_player_owned: '0',
+      allow_player_owned: req.allowCarriers ? '1' : '0',
       allow_restricted_access: '0',
       unique: '0',
       permit: '1',
@@ -147,6 +147,10 @@ export class SpanshClient {
         null as any
       );
       const hopProfit = commodities.reduce((sum, c) => sum + (c.total_profit ?? 0), 0);
+      const totalUnits = commodities.reduce((sum, c) => sum + (c.amount ?? 0), 0);
+      const extra = commodities.length - 1;
+      // Convention: label + prices describe the LEAD commodity; units and profit
+      // cover the whole hop (Spansh routes often fill the hold with several goods).
       return {
         fromStationId: 0,
         toStationId: 0,
@@ -154,8 +158,8 @@ export class SpanshClient {
         fromStation: h.source?.station ?? '',
         toSystem: h.destination?.system ?? '',
         toStation: h.destination?.station ?? '',
-        commodity: String(top?.name ?? '').toLowerCase(),
-        units: top?.amount ?? 0,
+        commodity: `${String(top?.name ?? '').toLowerCase()}${extra > 0 ? ` +${extra} more` : ''}`,
+        units: totalUnits,
         buyPrice: top?.source_commodity?.buy_price ?? 0,
         sellPrice: top?.destination_commodity?.sell_price ?? 0,
         profit: hopProfit,

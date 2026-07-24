@@ -92,4 +92,21 @@ describe('SpanshClient', () => {
     expect(stations[0].name).toBeTruthy();
     expect(stations[0].system).toBeTruthy();
   });
+
+  it('aggregates multi-commodity hops coherently', async () => {
+    const { fn } = fakeFetch({
+      '/trade/route': () => ({ body: fixture('trade-route-submit.json') }),
+      '/results/': () => ({ body: fixture('trade-route-result.json') }),
+    });
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    const result = await client.plotTrade(REQ);
+    const raw = fixture('trade-route-result.json').result;
+    const multiIdx = raw.findIndex((h: any) => (h.commodities ?? []).length > 1);
+    expect(multiIdx).toBeGreaterThanOrEqual(0); // fixture must contain a multi-commodity hop
+    const hop = result.route.hops[multiIdx];
+    const rawHop = raw[multiIdx];
+    expect(hop.commodity).toMatch(/\+\d+ more$/);
+    expect(hop.units).toBe(rawHop.commodities.reduce((s: number, c: any) => s + c.amount, 0));
+    expect(hop.profit).toBe(rawHop.commodities.reduce((s: number, c: any) => s + c.total_profit, 0));
+  });
 });
