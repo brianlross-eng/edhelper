@@ -131,6 +131,34 @@ Engine is built and tested before any UI exists:
   assumption is confirmed. Zero EDDN-created commodity rows → EDDN names and Spansh
   symbols reconcile exactly.
 
+## Validation results — UI phase (2026-07-24)
+
+Smoke test of the Electron cockpit app (`npm run dev`), driven live against the real
+database, journals, and EDDN feed:
+
+- **Launch**: window opens in the hybrid Elite-orange theme. One environment hiccup:
+  the desktop reboot mid-install had left a corrupted Electron binary cache
+  (install script silently produced an empty dist); cleared `%LOCALAPPDATA%\electron\Cache`
+  and extracted manually — app then launched normally.
+- **Cockpit panel (live journal)**: showed CMDR GORIGNA in a Type-6 at
+  Col 285 Sector FG-D a42-1 with a full 50/50t cargo bar and live credits (227,868 cr) —
+  all read from the running game's journal in real time.
+- **Prefill**: start system, cargo (50t), capital, and pad size (Medium — correct for
+  a Type-6) all auto-filled from ship state; station left blank because the commander
+  was undocked, exactly as designed.
+- **Trade planning from the UI**: entered Lave / Lave Station manually; a 4-hop route
+  (+1,375,950 cr over 114.9 ly, ~28 min estimate) rendered in a couple of seconds.
+- **Route tracking**: START ROUTE replaced the form with the checklist (hop 1 active,
+  2-4 pending), the cockpit card showed "Hop 1 of 4 → Dijkstra / Lienward — Sell 50t
+  wine", and the expected-vs-actual profit line rendered. Clear route restored the form
+  with values preserved. (Dock-triggered auto-advance is covered by RouteTracker unit
+  tests; not exercisable without flying the route.)
+- **Data health footer**: green across the board — "Market data: imported today",
+  "EDDN connected" with the live-update counter climbing (6 → 47 during the test),
+  "Journal linked".
+- **Shutdown**: closing the window exited the dev process with code 0 and left no
+  orphaned engine-host/node processes.
+
 ## Open questions deferred to implementation planning
 
 - Exact beam-search parameters (K, scoring weights) — tuned against fixtures.
