@@ -68,7 +68,7 @@ the UI never touches SQLite directly.
 
 - `systems` — id64, name, x/y/z
 - `stations` — system_id, name, type, pad_size, dist_from_star, market_updated_at
-- `commodities` — name, category
+- `commodities` — symbol (lowercase), category
 - `listings` — station_id × commodity_id: buy_price, sell_price, supply, demand
 - Spatial radius queries ("stations within 40 ly") via SQLite R-tree on system
   coordinates.

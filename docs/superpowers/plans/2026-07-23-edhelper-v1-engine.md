@@ -2329,6 +2329,10 @@ git commit -m "docs: record engine validation results against real data"
 - **Hop-finder sell-side query shape**: findCandidateHops filters the sell side by commodity index globally before narrowing to nearby systems; at ~5M listings, driving from temp.nearby → stations → listings would scale better. Revisit if plot-trade is slow on real data (Task 14).
 - **EDDN/Spansh symbol reconciliation**: Task 14 should count commodities rows created by EDDN that didn't exist from the dump (a nonzero count means symbol-format mismatch fragmenting listings across duplicate commodity rows).
 
+- **EDDN reconnect has no backoff** (spec said "backoff"): reconnects immediately; the 120s heartbeat makes a tight loop unlikely, but add a small delay if relay outages ever cause churn.
+- **Watcher UTF-8 read boundary**: a multi-byte character split across poll reads decodes to U+FFFD (cosmetic, one character); use StringDecoder if ever tightened.
+- **CLI positional parser**: a positional following a value-less flag is misparsed as the flag's value; no such flags exist today.
+
 ## Plan complete — what comes next
 
 After this plan is executed and validated, the follow-up plan covers `packages/app`: the Electron shell, the cockpit UI (hybrid style), IPC contract to this engine, route auto-advance from journal events, and data-health footer.
