@@ -65,6 +65,39 @@ export interface DataHealth {
   error?: string;
 }
 
+/** ------- Neutron plotting ------- */
+export interface PlotNeutronRequest {
+  from: string;
+  to: string;
+  jumpRange: number;
+  efficiency: number; // percent, Spansh default 60
+}
+
+export interface NeutronWaypoint {
+  system: string;
+  distanceJumped: number;
+  distanceLeft: number;
+  jumps: number;
+  neutronStar: boolean;
+}
+
+export interface NeutronRoute {
+  waypoints: NeutronWaypoint[];
+  totalJumps: number;
+  totalDistanceLy: number;
+}
+
+export type PlotNeutronResponse = { ok: true; result: NeutronRoute } | { ok: false; error: string };
+
+export type WaypointStatus = 'done' | 'next' | 'pending';
+
+export interface ActiveNeutronRoute {
+  route: NeutronRoute;
+  currentWaypoint: number; // index of the NEXT waypoint to reach
+  waypointStatus: WaypointStatus[];
+  copiedSystem: string | null;
+}
+
 /** ------- Renderer-facing API (window.edhelper) ------- */
 export interface EdhelperApi {
   getShipState(): Promise<ShipState>;
@@ -78,4 +111,10 @@ export interface EdhelperApi {
   onRouteUpdated(cb: (r: ActiveRoute | null) => void): () => void;
   onEddn(cb: (e: EddnBroadcast) => void): () => void;
   onSpansh(cb: (s: SpanshHealth) => void): () => void;
+  plotNeutron(req: PlotNeutronRequest): Promise<PlotNeutronResponse>;
+  startNeutronRoute(route: NeutronRoute): Promise<ActiveNeutronRoute>;
+  clearNeutronRoute(): Promise<void>;
+  getNeutronRoute(): Promise<ActiveNeutronRoute | null>;
+  anchorNeutronRoute(index: number): Promise<ActiveNeutronRoute | null>;
+  onNeutronUpdated(cb: (r: ActiveNeutronRoute | null) => void): () => void;
 }

@@ -1,5 +1,12 @@
 import type { Hop, TradeRoute } from '@edhelper/engine';
-import type { PlotTradeRequest, PlotTradeResult, SpanshHealth } from '../shared/ipc-types.js';
+import type {
+  PlotTradeRequest,
+  PlotTradeResult,
+  SpanshHealth,
+  PlotNeutronRequest,
+  NeutronRoute,
+  NeutronWaypoint,
+} from '../shared/ipc-types.js';
 
 /*
  * DECLARED SHAPE (AMENDED by the Task 2 agent from live probes; canonical source:
@@ -193,6 +200,95 @@ export class SpanshClient {
       name: r.name ?? '',
       system: r.system_name ?? r.system ?? '',
     }));
+  }
+
+  /*
+   * DECLARED SHAPE (canonical: packages/app/fixtures/spansh/neutron-route-*.json):
+   *  AMENDED against the live Task 1 probe (Lave -> Colonia, efficiency=60, range=28.5):
+   *  - POST {base}/route (form) params: efficiency, range, from, to -> matches as originally
+   *    declared, submitted verbatim, no silent-ignore trap hit. Actual response body is
+   *    { "job": "<uuid>", "status": "queued" } (202) -- the extra `status` field is harmless,
+   *    `submit.job` still resolves correctly.
+   *  - GET {base}/results/{job} -> pending body has NO `result` key at all and `state` is
+   *    "started" (not "queued" as originally guessed) while top-level `status` stays "queued";
+   *    same pattern as the v1.1 trade-route findings. Completed body:
+   *      { "job": "...", "parameters": {...}, "state": "completed", "status": "ok",
+   *        "result": {
+   *          "source_system": s, "destination_system": s, "distance": n (straight-line ly),
+   *          "efficiency": "60", "range": "28.5", "job": "...", "via": [],
+   *          "system_jumps": [{ "system": s, "distance_jumped": n, "distance_left": n,
+   *                              "jumps": n, "neutron_star": bool, "id64": n,
+   *                              "x": n, "y": n, "z": n }, ...],
+   *          "total_jumps": n
+   *        } }
+   *    The extra `result`-level fields (source_system/destination_system/distance/efficiency/
+   *    range/job/via) and extra per-waypoint fields (id64/x/y/z) are harmless -- ignored by
+   *    the mapping below, no code impact.
+   *    The SOURCE system IS included as the first entry with jumps: 0 -- CONFIRMED against
+   *    live data (231 waypoints, waypoints[0] = { system: "Lave", jumps: 0, distance_jumped: 0,
+   *    distance_left: <full route distance> }); Task 3's start-index assumption is correct.
+   *
+   *    CRITICAL: `result.total_jumps` is NOT the total count of real hyperspace jumps for the
+   *    trip. It is the count of route legs (waypoints.length - 1 -- i.e. one per neutron-star
+   *    waypoint plus the final destination leg). Verified on the live fixture: 231 waypoints,
+   *    total_jumps = 230 (= 231 - 1), while summing every waypoint's own `jumps` field
+   *    (the real number of hyperspace jumps needed to cover that leg, since supercharge only
+   *    extends the *last* jump of a leg) gives 416 -- the actual real jump count a Cmdr will
+   *    fly, nearly 2x the "total_jumps" figure. Displaying raw.total_jumps as "total jumps"
+   *    would badly understate the trip. mapNeutronResult below has been amended to always
+   *    derive totalJumps by summing the per-waypoint `jumps` field instead of trusting
+   *    raw.total_jumps (see amended code). This does not change any existing test expectation:
+   *    Task 2's own test only asserts totalJumps > 0, and Task 4's hand-written mock
+   *    (`total_jumps: 5`, waypoints' jumps [0, 5]) happens to sum to the same 5, so both keep
+   *    passing unchanged.
+   *
+   *    `totalDistanceLy` (sum of per-waypoint distanceJumped) is CONFIRMED correct as originally
+   *    written: it gives the real cumulative ly traveled (26313.9 ly on the live fixture),
+   *    which is intentionally larger than the top-level `distance` field (21971.9 ly, the
+   *    straight-line source-to-destination distance) because the neutron highway zigzags.
+   *    No change needed there.
+   */
+  async plotNeutron(req: PlotNeutronRequest): Promise<NeutronRoute> {
+    const form = new URLSearchParams({
+      efficiency: String(req.efficiency),
+      range: String(req.jumpRange),
+      from: req.from,
+      to: req.to,
+    });
+    const submit = await this.request('/route', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: form.toString(),
+    });
+    const job = submit.job;
+    if (!job) throw new Error('Spansh did not return a job id');
+
+    for (let i = 0; i < MAX_POLLS; i++) {
+      const result = await this.request(`/results/${job}`, { method: 'GET' });
+      if (result.state === 'completed' || result.result?.system_jumps) {
+        return this.mapNeutronResult(result.result ?? {});
+      }
+      await new Promise((r) => setTimeout(r, this.pollMs));
+    }
+    throw new Error('Spansh neutron job timed out');
+  }
+
+  private mapNeutronResult(raw: any): NeutronRoute {
+    const waypoints: NeutronWaypoint[] = (raw.system_jumps ?? []).map((j: any) => ({
+      system: j.system ?? '',
+      distanceJumped: j.distance_jumped ?? 0,
+      distanceLeft: j.distance_left ?? 0,
+      jumps: j.jumps ?? 0,
+      neutronStar: Boolean(j.neutron_star),
+    }));
+    return {
+      waypoints,
+      // AMENDED (Task 1 live probe): raw.total_jumps is a route-leg count, not the real
+      // hyperspace-jump count -- always sum the per-waypoint `jumps` field instead. See the
+      // DECLARED SHAPE comment above for the live numbers that proved this (230 vs. 416).
+      totalJumps: waypoints.reduce((s, w) => s + w.jumps, 0),
+      totalDistanceLy: waypoints.reduce((s, w) => s + w.distanceJumped, 0),
+    };
   }
 }
 

@@ -110,3 +110,32 @@ describe('SpanshClient', () => {
     expect(hop.profit).toBe(rawHop.commodities.reduce((s: number, c: any) => s + c.total_profit, 0));
   });
 });
+
+describe('plotNeutron', () => {
+  const NREQ = { from: 'Lave', to: 'Colonia', jumpRange: 28.5, efficiency: 60 };
+
+  it('submits a neutron job, polls, and maps the waypoints', async () => {
+    const { fn, calls } = fakeFetch({
+      '/route': () => ({ body: fixture('neutron-route-submit.json') }),
+      '/results/': () => ({ body: fixture('neutron-route-result.json') }),
+    });
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    const route = await client.plotNeutron(NREQ);
+    expect(route.waypoints.length).toBeGreaterThan(1);
+    expect(route.waypoints[0].system.toLowerCase()).toContain('lave'); // source row included
+    expect(route.waypoints[0].jumps).toBe(0);
+    expect(route.waypoints.at(-1)!.system.toLowerCase()).toContain('colonia');
+    expect(route.waypoints.some((w) => w.neutronStar)).toBe(true);
+    expect(route.totalJumps).toBeGreaterThan(0);
+    expect(route.totalDistanceLy).toBeGreaterThan(0);
+    const submit = calls.find((c) => c.url.endsWith('/route'))!;
+    expect(String(submit.init.body)).toContain('efficiency=60');
+    expect(String(submit.init.body)).toContain('Colonia');
+  });
+
+  it('propagates neutron errors', async () => {
+    const { fn } = fakeFetch({ '/route': () => ({ status: 500, body: {} }) });
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    await expect(client.plotNeutron(NREQ)).rejects.toThrow();
+  });
+});
