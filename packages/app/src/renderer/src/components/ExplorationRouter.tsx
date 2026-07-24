@@ -160,7 +160,7 @@ export function ExplorationRouter({ ship, route, onPlot, onStart, onClear, onAnc
           </div>
           {result.waypoints.map((wp, i) => waypointRow(wp, i, '○', '', false))}
           <div className="route-summary">
-            <span className="muted">Starting replaces any active neutron route.</span>
+            <span className="muted">Starting replaces any active neutron or fleet carrier route.</span>
             <button className="btn" onClick={() => onStart(result)}>START ROUTE</button>
           </div>
         </div>

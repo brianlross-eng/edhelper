@@ -1,7 +1,7 @@
 import type { ShipState } from '@edhelper/engine';
-import type { ActiveRoute, ActiveNeutronRoute, ActiveExplorationRoute } from '../../../shared/ipc-types';
+import type { ActiveRoute, ActiveNeutronRoute, ActiveExplorationRoute, ActiveFleetCarrierRoute } from '../../../shared/ipc-types';
 
-export function CockpitPanel({ ship, route, neutron, exploration }: { ship: ShipState | null; route: ActiveRoute | null; neutron: ActiveNeutronRoute | null; exploration: ActiveExplorationRoute | null }) {
+export function CockpitPanel({ ship, route, neutron, exploration, carrier }: { ship: ShipState | null; route: ActiveRoute | null; neutron: ActiveNeutronRoute | null; exploration: ActiveExplorationRoute | null; carrier: ActiveFleetCarrierRoute | null }) {
   const cargoPct = ship?.cargoCapacity ? Math.min(100, ((ship.cargoUsed ?? 0) / ship.cargoCapacity) * 100) : 0;
   const nextHop = route && route.currentHop < route.route.hops.length ? route.route.hops[route.currentHop] : null;
   return (
@@ -69,6 +69,21 @@ export function CockpitPanel({ ship, route, neutron, exploration }: { ship: Ship
             </>
           ) : (
             <div>Route complete · {exploration.route.totalBodies} bodies</div>
+          )}
+        </div>
+      )}
+
+      {carrier && (
+        <div className="route-box" data-testid="carrier-card">
+          <div className="label" style={{ marginTop: 0 }}>FLEET CARRIER</div>
+          {carrier.currentWaypoint < carrier.route.waypoints.length ? (
+            <>
+              <div className="muted">Waypoint {carrier.currentWaypoint + 1} of {carrier.route.waypoints.length}</div>
+              <div className="next-hop">▶ {carrier.route.waypoints[carrier.currentWaypoint].system}</div>
+              <div className="muted">on clipboard — paste in galaxy map</div>
+            </>
+          ) : (
+            <div>Route complete · {carrier.route.totalJumps} jumps</div>
           )}
         </div>
       )}
