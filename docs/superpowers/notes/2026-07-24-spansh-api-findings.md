@@ -301,3 +301,196 @@ line. No amendment needed for that field.
 | Source system at `system_jumps[0]` with `jumps: 0` | **Match** — confirms Task 3's start-index assumption |
 | `total_jumps` → `NeutronRoute.totalJumps` mapping | **Amended (code)** — raw field is a leg count (230), not the real jump count (416); mapping changed to always sum per-waypoint `jumps` |
 | `totalDistanceLy` (sum of `distanceJumped`) | **Match**, confirmed correct as originally written |
+
+## Exploration routes (riches/ammonia/earth/rocky)
+
+Probed live to answer a specific design question: does Spansh's website expose four separate
+tools (Road to Riches `/riches`, Ammonia World Route `/ammonia`, Earth-like World Route `/earth`,
+Rocky/Metal-Rich World Route `/rocky-metal`) as four distinct backend endpoints, or one shared
+endpoint distinguished by a body-type filter? Same tooling as above: fetched the site's pages
+(`/riches`, `/ammonia`, `/earth`) to confirm they all load the *same* Ember bundle
+(`elite-dangerous-gui-7c4a80cdff3416e86822ab0c9abf55fd.js`, same hash as the trade/neutron probe —
+no separate per-page bundle), then read that bundle's `controllers/riches`, `controllers/ammonia`,
+`controllers/earth`, `controllers/rocky-metal`, and their shared base class
+`controllers/base/salesman` to find the real `calculate()` request-building code, exactly as the
+v1.1 trade-route probe did. Note: the site names the fourth tool's route **`rocky-metal`**, not
+plain `rocky` — there is no separate "Rocky Body only" page; it's bundled with High Metal Content
+worlds under one "Rocky/Metal" tool. No `exact-plotter` variant is a body-type router — it's a
+different feature (exact plotting via user-supplied ship+route), out of scope here.
+
+### Endpoint discovery result
+
+| Site page | Controller module | API call | Endpoint |
+|---|---|---|---|
+| `/riches` | `controllers/riches` | `this.api.plotRichesRoute(t)` | `POST /api/riches/route` |
+| `/ammonia` | `controllers/ammonia` | `this.api.plotRichesRoute(t)` | `POST /api/riches/route` |
+| `/earth` | `controllers/earth` | `this.api.plotRichesRoute(t)` | `POST /api/riches/route` |
+| `/rocky-metal` | `controllers/rocky-metal` | `this.api.plotRichesRoute(t)` | `POST /api/riches/route` |
+
+**All four call the identical API client method (`api.plotRichesRoute`), which posts to the
+identical URL (`/api/riches/route`).** This is directly readable in the bundle, not inferred:
+`ammonia`/`earth`/`rocky-metal`'s `calculate()` bodies are near-identical to each other and to
+`riches`'s, differing only in two fields (see parameter table below). There is **no**
+`/api/ammonia/route`, `/api/earth/route`, or `/api/rocky/route` in the entire bundle — the only
+riches-family endpoint string present anywhere is `/api/riches/route`. (For contrast, the bundle
+does define a genuinely separate `/api/generic/route`, used by unrelated tools like the
+engineering-material and colonisation routers — not part of this family at all.)
+
+**VERDICT: one-tool-with-a-body-type-selector is not just feasible, it's exactly how Spansh's
+own frontend is built.** ED Helper can ship a single "Exploration Router" tool backed by one
+`SpanshClient.plotRichesRoute()` method and a `bodyTypes` selector (`undefined`/`[]` → Road to
+Riches "any high-value body"; `["Ammonia world"]` → Ammonia World Route; `["Earth-like world"]`
+→ Earth-like World Route; `["Rocky body","High metal content world"]` → Rocky/Metal-Rich World
+Route), matching the site's own `body_types` values exactly.
+
+### Shared parameters (`POST /api/riches/route`, form-urlencoded, `traditional:true` array serialization)
+
+Read from `controllers/base/salesman`'s tracked properties (shared by all four) plus each
+controller's own `calculate()`:
+
+| Field sent | Type | Default (site) | Notes |
+|---|---|---|---|
+| `from` | string | — (required) | source system name; **echoed back in `parameters` as `source`, not `from`** — a naming discrepancy worth documenting (see below), not a bug |
+| `to` | string | omitted if unset | destination system name; optional — omitting it lets the route roam freely (see `loop`); **echoed back as `destination`** |
+| `range` | string(float) | — (required) | ship jump range, ly |
+| `radius` | string(int) | `25` | ly; search corridor half-width around the route line (bodies must be within this of some point on the path) |
+| `max_results` | string(int) | `100` | cap on number of waypoints returned |
+| `max_distance` | string(int) | `50000` | ly; appears to cap total route distance, not a per-hop figure — jobs with `to` set and enough headroom still complete fine at much smaller values |
+| `avoid_thargoids` | `'0'`/`'1'` | `true`→`1` | avoid Thargoid-controlled systems |
+| `loop` | `'0'`/`'1'` | `true`→`1` | when no `to` is given, controls whether the route loops back to `from`; with `to` set it's still sent but its effect wasn't isolated in this probe |
+| `min_value` | string(int) | `1` (ammonia/earth/rocky-metal, **hardcoded**) or `100000` (riches, **user-configurable**) | minimum `estimated_scan_value` (credits) for a body to qualify — riches defaults to a real value floor since it isn't filtering by rarity; the other three set it to `1` (effectively "any value") since the `body_types` filter already does the narrowing |
+| `use_mapping_value` | `'0'`/`'1'` | `false`→`0`, **riches only** | if set, presumably ranks/filters by `estimated_mapping_value` instead of `estimated_scan_value` — not isolated in this probe (left at default `0`); ammonia/earth/rocky-metal never send this field at all |
+| `body_types` | array of string, repeated key (jQuery `traditional:true`, e.g. two `body_types=` params for two values) | **absent** (riches) / `["Ammonia world"]` (ammonia) / `["Earth-like world"]` (earth) / `["Rocky body","High metal content world"]` (rocky-metal) | **this is the one field that distinguishes all four tools** — confirmed by inspecting the literal hardcoded array in each controller's `calculate()`. Riches sends no `body_types` key at all (not an empty array) — omitting the field entirely means "any body type qualifies." |
+
+### Jobs submitted
+
+Two real jobs against `/api/riches/route`, per the "at most 2 jobs, one riches + one body-type
+variant" instruction (a plain small `from=Lave, range=28.5` probe was tried first per the
+plan's suggested defaults, see discrepancy note below, before settling on the fixture-worthy
+corridor):
+
+1. **Riches** (no `body_types`): `from=Sol, to=Colonia, range=28.5, radius=50, max_results=20, max_distance=25000, loop=0, avoid_thargoids=1, min_value=100000, use_mapping_value=0` → **202**, job `71728536-8759-11F1-A6A9-9DE4F7845112`, completed with 22 waypoints / 157 qualifying bodies. Fixtures: `packages/app/fixtures/spansh/riches-route-submit.json`, `riches-route-result.json`.
+2. **Ammonia** (`body_types=Ammonia world`), same corridor for a clean apples-to-apples comparison: `from=Sol, to=Colonia, range=28.5, radius=50, max_results=20, max_distance=25000, loop=0, avoid_thargoids=1, min_value=1` → **202**, job `52662314-8759-11F1-99B7-A2E1E9678D33`, completed with 22 waypoints / 42 qualifying bodies, **all** of subtype `"Ammonia world"` (the riches job's 157 bodies span 5 subtypes: High metal content world, Earth-like world, Water world, Ammonia world, Rocky body — proof the filter genuinely narrows the same underlying search). Fixture: `packages/app/fixtures/spansh/ammonia-route-result.json`.
+
+### Discrepancy: the plan's suggested `from=Lave, range=28.5` probe returned real-but-empty results
+
+Sending exactly the plan's suggested minimal params (`from=Lave`, `range=28.5`, small
+`radius`/`max_distance`, with and without `to=Sol`, with and without `body_types`) produced
+**202 → completed → `result` containing only the start/end system(s), each with `bodies: []`** —
+not an error, not a silent-ignore trap like v1.1's trade-route probe, just a genuinely empty
+qualifying set. This makes sense in hindsight: Spansh's body data is sourced from real player
+scans (EDDN), and the sparsely-explored space immediately around Lave/Sol at a `radius` of 25-50
+ly and a `max_distance` of 1000-20000 ly simply doesn't have enough deeply-scanned, high-value or
+rare-subtype bodies to surface any. Widening to a real, heavily-traveled corridor
+(`from=Sol, to=Colonia`, the same pair used in the v1.2 neutron-route probe) immediately produced
+substantial results (157 and 42 bodies respectively) at the **same** `radius=50`/`max_distance=25000`
+settings — so the params were right the first time; the *location* was the problem, not the
+field names. No code/plan amendment needed here since ED Helper's actual usage will be
+player-driven (real systems along real routes), not synthetic test coordinates — but worth
+remembering when writing this tool's own tests/fixtures: pick a well-scanned corridor, not an
+arbitrary short hop.
+
+### Response walkthrough
+
+**Submit response** (`202 Accepted`): `{"job":"<uuid>","status":"queued"}` — identical envelope
+to trade-route and neutron-route.
+
+**Pending** `GET /api/results/{job}`: not captured mid-flight this time — both fixture jobs
+completed by the first poll (issued ~0.8s after submit in one timed run, ~4.3s gap observed
+between submit and a poll that already showed `state: "completed"`; see Latency below). Given
+the identical envelope pattern already confirmed twice (trade route, neutron route), the pending
+shape is assumed identical (`state: "started"`, `status: "queued"`, `result` key absent) but this
+specific assumption was **not directly re-verified** for the riches endpoint in this session —
+flagged as a minor gap, not a blocker (does not affect the endpoint/parameter/response-shape
+verdict).
+
+**Completed envelope:**
+```json
+{"job":"...", "parameters":{...echoed, see below...}, "result":[ ...waypoints... ], "state":"completed", "status":"ok"}
+```
+No aggregate/total-value field anywhere in the envelope — if ED Helper wants a route-total
+value, it must sum `bodies[].estimated_scan_value` (or `estimated_mapping_value`) client-side,
+same as Spansh's own Ember `buildRows()` does implicitly (it just lays out one table row per
+body, no running total column).
+
+**Parameter echo naming quirk:** the completed job's `parameters` object echoes `from`→`source`
+and `to`→`destination` — different key names than what was submitted. (`max_distance`,
+`max_results`, `min_value`, `radius`, `range` echo back unchanged as strings; `use_mapping_value`
+echoes as the string `"0"`/`"1"` when riches sends it, or literal `null` when the field was never
+sent at all, e.g. by the ammonia job.) This mirrors nothing seen in the trade/neutron probes
+(those echoed field names unchanged) — worth a heads-up if ED Helper's job-polling code ever
+inspects the echoed `parameters` for a sanity check, the way the trade-route probe used it to
+detect the silent-ignore trap.
+
+**Per-waypoint fields** (`result[]` entries):
+```json
+{ "name": "Sol", "id64": "10477373803", "jumps": 1, "x": 0, "y": 0, "z": 0, "bodies": [] }
+```
+`jumps` is the hop count from the *previous* waypoint to reach this one (not cumulative) — the
+start system's own `jumps` value was `1` in both fixture jobs (an odd but consistent quirk, not
+`0` as neutron-route's start waypoint was). `bodies` is `[]` for waypoints with no qualifying
+body (e.g. the start/end systems themselves, in both fixture jobs).
+
+**Per-body fields** (`result[].bodies[]` entries) — this is the data that drives the UI:
+```json
+{
+  "name": "Drojeae WO-X d2-88 A 5",
+  "type": "Planet",
+  "subtype": "Earth-like world",
+  "is_terraformable": false,
+  "distance_to_arrival": 1506.738681,
+  "estimated_scan_value": 265368,
+  "estimated_mapping_value": 964169,
+  "landmark_value": null,
+  "id": 288233409984055940,
+  "id64": "288233409984055963"
+}
+```
+- `type`/`subtype`: coarse category ("Planet") plus the specific body type used for `body_types`
+  filtering ("Earth-like world", "Ammonia world", "High metal content world", "Water world",
+  "Rocky body" all observed across the two fixture jobs).
+- `is_terraformable`: boolean, maps directly to the site's own "terraform: yes/no" column.
+- `distance_to_arrival`: ls from the system's entry point, not ly — matches the site's
+  "distance" column and the trade-route hop shape's use of the same field name for the same unit.
+- `estimated_scan_value` / `estimated_mapping_value`: separate credit figures (scan-only vs.
+  scan+detailed-surface-mapping) — the site's own columns list both explicitly
+  (`download.scan_value`, `download.mapping_value`), so ED Helper's UI should show both, not
+  collapse them into one "value" figure.
+- `landmark_value`: `null` for ordinary bodies; observed as a flat `1000000` (1M credits) on one
+  body in the riches fixture (`Eol Prou YI-R c5-88 A 7`, a High metal content world) — a bonus
+  for a notable landmark/first-discovery-class feature, additive on top of scan/mapping value.
+  Not present in the plan's assumed shape; worth surfacing in the UI as a bonus badge when
+  non-null.
+- **`id` vs `id64` — precision trap:** `id` is a plain JSON number and for large 64-bit body IDs
+  it silently loses precision past `Number.MAX_SAFE_INTEGER` (observed directly: the same body
+  fetched in two separate but parameter-identical job runs printed `id: 180147018927164060` in
+  one console dump and `id: 180147018927164059` in another, a one-off rounding artifact of
+  parsing the same value twice — not a server-side inconsistency). **`id64` is a string** and is
+  the only reliable identifier; ED Helper's client should always read `id64`, never `id`, exactly
+  as Task 3's trade-route mapping already treats `system_id64` as a string-typed field.
+
+### Latency
+
+- `POST /riches/route` submission: sub-second (202 immediately), consistent with trade/neutron.
+- Job completion for the fixture-quality `Sol → Colonia` jobs (22 waypoints, 157 or 42 bodies,
+  ~22,000 ly corridor, same order of magnitude as the v1.2 neutron job): completed **well under
+  5 seconds** — one timed run showed the job already `"state":"completed"` on the very first poll,
+  issued ~4.3s after the 202 response. Noticeably faster than both the trade-route job (~19-20s)
+  and the neutron-route job (~20-28s) despite covering comparable distance — body-value filtering
+  appears cheap relative to multi-hop trade-hop or neutron-jump graph search.
+- The empty-result probe jobs near Lave (small `radius`/`max_distance`) were faster still,
+  consistent with less work to do (nothing found, nowhere to expand).
+- No rate-limit headers observed on any response this session, consistent with all prior probes.
+
+### Summary: match/amend verdict (exploration routes)
+
+| Item | Verdict |
+|---|---|
+| One shared endpoint (`/api/riches/route`) for riches/ammonia/earth/rocky-metal | **CONFIRMED** — read directly from the bundle's controller source, all four call the same `api.plotRichesRoute()` |
+| `body_types` as the sole differentiator | **CONFIRMED** — verified both by reading the hardcoded arrays in each controller and by comparing two real completed jobs' body-subtype composition (157 bodies/5 subtypes with no filter vs. 42 bodies/1 subtype with `body_types=["Ammonia world"]`) |
+| Feasibility of ED Helper's single "Exploration Router" tool with a body-type selector | **VERDICT: feasible, and mirrors Spansh's own architecture** — no separate tools needed |
+| Parameter echo naming (`from`→`source`, `to`→`destination`) | **New finding, docs-only** — no code impact yet, flag for whoever writes the polling/echo-sanity-check code |
+| `id` (number) vs `id64` (string) precision | **New finding** — client code must read `id64`, not `id`, for body identity |
+| `landmark_value` bonus field | **New finding** — not in any prior declared shape; additive bonus, `null` when absent |
+| Aggregate route value | **Not provided by the API** — must be computed client-side by summing `bodies[].estimated_scan_value`/`estimated_mapping_value` |
+| Pending-state envelope shape for this endpoint specifically | **Assumed, not re-verified this session** (both fixture jobs completed before first poll) — low-risk given identical envelope confirmed twice already for sibling endpoints |
