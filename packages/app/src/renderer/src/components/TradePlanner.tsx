@@ -55,7 +55,7 @@ export function TradePlanner({ ship, route, onPlot, onStart, onClear }: TradePla
       minDemand: Number(minDemand) || 0,
       allowSurface: surface,
       allowCarriers: carriers,
-      maxDataAgeDays: maxAge === '' ? undefined : Number(maxAge),
+      maxDataAgeDays: Number.isFinite(Number(maxAge)) && maxAge.trim() !== '' ? Number(maxAge) : undefined,
       shipJumpRange: ship?.maxJumpRange,
     };
     if (!req.fromSystem || !req.fromStation) {

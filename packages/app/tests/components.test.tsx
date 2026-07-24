@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import type { ShipState } from '@edhelper/engine';
 import type { ActiveRoute } from '../src/shared/ipc-types';
 import { CockpitPanel } from '../src/renderer/src/components/CockpitPanel';
@@ -64,17 +64,31 @@ describe('RouteChecklist', () => {
     expect(screen.getByTestId('hop-1').textContent).toContain('tea');
     expect(screen.getByText(/Expected \+150,000/)).toBeTruthy();
   });
+
+  it('renders pending markers and fires onClear', () => {
+    const pendingRoute = {
+      ...ROUTE,
+      currentHop: 0,
+      hopStatus: ['active', 'pending'] as const,
+    };
+    let cleared = 0;
+    render(<RouteChecklist route={{ ...pendingRoute, hopStatus: [...pendingRoute.hopStatus] }} onClear={() => cleared++} />);
+    expect(screen.getByTestId('hop-1').textContent).toContain('2'); // pending marker = index+1
+    fireEvent.click(screen.getByText('Clear route'));
+    expect(cleared).toBe(1);
+  });
 });
 
 describe('TradePlanner', () => {
   it('prefills inputs from ship state', () => {
     render(
-      <TradePlanner ship={SHIP} route={null} onPlot={async () => ({ ok: false, error: 'x' })} onStart={() => {}} onClear={() => {}} />
+      <TradePlanner ship={{ ...SHIP, padSize: 'L' as const }} route={null} onPlot={async () => ({ ok: false, error: 'x' })} onStart={() => {}} onClear={() => {}} />
     );
     expect(screen.getByDisplayValue('Sol')).toBeTruthy();
     expect(screen.getByDisplayValue('Abraham Lincoln')).toBeTruthy();
     expect(screen.getByDisplayValue('192')).toBeTruthy();
     expect(screen.getByDisplayValue('7200000')).toBeTruthy();
+    expect((screen.getByDisplayValue('Large') as HTMLSelectElement).value).toBe('L');
   });
 
   it('shows the checklist instead of the form while a route is active', () => {
