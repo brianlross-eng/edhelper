@@ -19,7 +19,6 @@ export interface PlotTradeRequest {
   maxHops: number;
   allowSurface: boolean;
   allowCarriers: boolean;
-  maxDistFromStar?: number;
   maxDataAgeDays?: number;
   shipJumpRange?: number;
 }

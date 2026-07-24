@@ -127,6 +127,22 @@ describe('engine-host (Spansh + EDDN)', () => {
     expect(await request('searchStations', { query: 'Lave Station' })).toEqual([{ name: 'Lave Station', system: 'Lave' }]);
   });
 
+  // Must run before any test that sends a LoadGame event: the host's commander
+  // fallback only applies while it's still 'unknown', and a live LoadGame wins
+  // permanently thereafter (see the market snapshot test below).
+  it('uses the forwarded commander as uploaderID fallback', async () => {
+    await request('setEddnUpload', { enabled: true });
+    const before = eddnBodies.length;
+    await request('journalEvent', {
+      raw: { timestamp: 't', event: 'FSDJump', StarSystem: 'Zaonce', StarPos: [1, 2, 3], SystemAddress: 44 },
+      commander: 'MidSession',
+    });
+    await new Promise((r) => setTimeout(r, 500));
+    const sent = eddnBodies.slice(before);
+    expect(sent.length).toBeGreaterThan(0);
+    expect(sent[0].header.uploaderID).toBe('MidSession');
+  });
+
   it('broadcasts a market snapshot when a Market event arrives', async () => {
     const journalDir = mkdtempSync(join(tmpdir(), 'edh-market-'));
     writeFileSync(

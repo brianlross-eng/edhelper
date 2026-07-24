@@ -49,7 +49,11 @@ app.whenReady().then(() => {
   // later polls are forwarded. ('state'/'event' stay registered before start.)
   watcher.on('raw', (raw: unknown) => {
     void engine
-      .request('journalEvent', { raw, journalDir: process.env.EDHELPER_JOURNAL_DIR ?? DEFAULT_JOURNAL_DIR }, 30_000)
+      .request('journalEvent', {
+        raw,
+        journalDir: process.env.EDHELPER_JOURNAL_DIR ?? DEFAULT_JOURNAL_DIR,
+        commander: watcher.getState().commander,
+      }, 30_000)
       .catch(() => {});
   });
   tracker.on('updated', (r) => win?.webContents.send('route:updated', r));

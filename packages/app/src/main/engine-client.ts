@@ -13,7 +13,7 @@ export interface EngineClientSpawnSpec {
  * Spawns the engine-host child process and provides typed promise RPC over stdio.
  * Emits 'event:<name>' for pushed events (e.g. 'event:eddn') and restarts the
  * child with a 2s delay if it exits unexpectedly. A received 'fatal' event
- * (e.g. the host can't open its database) suppresses auto-restart so a
+ * (an unexpected startup failure in the host) suppresses auto-restart so a
  * persistently bad config doesn't loop silently; call start() again to retry.
  */
 export class EngineClient extends EventEmitter {

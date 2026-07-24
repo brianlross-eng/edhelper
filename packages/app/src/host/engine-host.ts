@@ -65,7 +65,8 @@ async function handle(req: RpcRequest): Promise<unknown> {
     case 'searchStations':
       return spansh.searchStations((req.params as { query: string }).query);
     case 'journalEvent': {
-      const p = req.params as { raw: any; journalDir?: string };
+      const p = req.params as { raw: any; journalDir?: string; commander?: string };
+      if (p.commander && commander === 'unknown') commander = p.commander;
       handleJournalEvent(p.raw, p.journalDir);
       return true;
     }

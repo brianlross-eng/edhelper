@@ -115,7 +115,7 @@ export function TradePlanner({ ship, route, onPlot, onStart, onClear }: TradePla
         </div>
         <div className="field">
           <label>Max data age (days)</label>
-          <input value={maxAge} onChange={(e) => setMaxAge(e.target.value)} placeholder="any" />
+          <input value={maxAge} onChange={(e) => setMaxAge(e.target.value)} placeholder="30" />
         </div>
       </div>
       <div className="checks">
