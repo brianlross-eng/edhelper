@@ -67,4 +67,13 @@ describe('reduceShipState', () => {
     s = reduceShipState(s, { type: 'MarketSell', commodity: 'gold', count: 10, totalSale: 100000 });
     expect(s.credits).toBe(110000);
   });
+
+  it('CarrierJump moves the current system but preserves docked state', () => {
+    let s = initialShipState();
+    s = reduceShipState(s, { type: 'Docked', system: 'Sol', station: 'X7F-B2L' });
+    s = reduceShipState(s, { type: 'CarrierJump', system: 'Gandharvi' });
+    expect(s.system).toBe('Gandharvi');
+    expect(s.docked).toBe(true);
+    expect(s.station).toBe('X7F-B2L');
+  });
 });

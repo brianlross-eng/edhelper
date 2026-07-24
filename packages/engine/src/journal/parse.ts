@@ -34,6 +34,8 @@ export function parseJournalLine(line: string): JournalEvent | null {
       };
     case 'FSDJump':
       return { type: 'FSDJump', system: raw.StarSystem ?? '' };
+    case 'CarrierJump':
+      return { type: 'CarrierJump', system: raw.StarSystem ?? '' };
     case 'Docked':
       return { type: 'Docked', system: raw.StarSystem ?? '', station: raw.StationName ?? '' };
     case 'Undocked':

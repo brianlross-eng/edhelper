@@ -58,4 +58,11 @@ describe('parseJournalLine', () => {
       parseJournalLine('{"timestamp":"t","event":"MarketSell","MarketID":1,"Type":"Gold","Count":10,"SellPrice":10000,"TotalSale":100000,"AvgPricePaid":9000}')
     ).toEqual({ type: 'MarketSell', commodity: 'gold', count: 10, totalSale: 100000 });
   });
+
+  it('parses CarrierJump', () => {
+    const ev = parseJournalLine(
+      JSON.stringify({ timestamp: 't', event: 'CarrierJump', StarSystem: 'Gandharvi', Docked: true, StationName: 'X7F-B2L' })
+    );
+    expect(ev).toEqual({ type: 'CarrierJump', system: 'Gandharvi' });
+  });
 });
