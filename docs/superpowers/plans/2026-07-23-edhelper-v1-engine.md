@@ -2303,6 +2303,12 @@ git commit -m "docs: record engine validation results against real data"
 
 ---
 
+## Deferred follow-ups (from reviews, not blocking v1 engine)
+
+- **WAL checkpoint before dump swap** (`src/dump/import.ts`): the swap deletes the live DB's `-wal`/`-shm` sidecars before success is known; if a concurrent writer (future Electron app + EDDN) has un-checkpointed transactions, they'd be lost. Fix when the app plan lands: open a short-lived handle to the live DB and run `PRAGMA wal_checkpoint(TRUNCATE)` before removing sidecars.
+- **Truncated-dump floor check**: the importer refuses only *empty* imports; a drastically truncated dump with ≥1 system would still swap in. Consider comparing against a floor derived from the previous DB's system count.
+- **Concurrent-import guard**: two simultaneous importDump calls would race on the `.importing` staging path; fine for the single-process CLI, revisit for the app.
+
 ## Plan complete — what comes next
 
 After this plan is executed and validated, the follow-up plan covers `packages/app`: the Electron shell, the cockpit UI (hybrid style), IPC contract to this engine, route auto-advance from journal events, and data-health footer.
