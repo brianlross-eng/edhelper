@@ -57,7 +57,7 @@ export class EngineClient extends EventEmitter {
         else p.reject(new Error(msg.error));
       }
     });
-    child.on('exit', () => {
+    child.on('close', () => {
       this.child = null;
       for (const p of this.pending.values()) p.reject(new Error('engine host exited'));
       this.pending.clear();
@@ -94,5 +94,7 @@ export class EngineClient extends EventEmitter {
     this.disposed = true;
     this.child?.kill();
     this.child = null;
+    for (const p of this.pending.values()) p.reject(new Error('engine client disposed'));
+    this.pending.clear();
   }
 }
