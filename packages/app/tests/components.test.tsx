@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach } from 'vitest';
-import { render, screen, cleanup, fireEvent } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent, within } from '@testing-library/react';
 import type { ShipState } from '@edhelper/engine';
-import type { ActiveRoute, ActiveNeutronRoute } from '../src/shared/ipc-types';
+import type { ActiveRoute, ActiveNeutronRoute, ActiveExplorationRoute } from '../src/shared/ipc-types';
 import { CockpitPanel } from '../src/renderer/src/components/CockpitPanel';
 import { RouteChecklist } from '../src/renderer/src/components/RouteChecklist';
 import { TradePlanner } from '../src/renderer/src/components/TradePlanner';
 import { NeutronPlotter } from '../src/renderer/src/components/NeutronPlotter';
+import { ExplorationRouter } from '../src/renderer/src/components/ExplorationRouter';
 import { DataHealthFooter } from '../src/renderer/src/components/DataHealthFooter';
 
 afterEach(cleanup);
@@ -32,7 +33,7 @@ const ROUTE: ActiveRoute = {
 
 describe('CockpitPanel', () => {
   it('shows commander, location, and cargo from ship state', () => {
-    render(<CockpitPanel ship={SHIP} route={null} neutron={null} />);
+    render(<CockpitPanel ship={SHIP} route={null} neutron={null} exploration={null} />);
     expect(screen.getByText('CMDR Bross')).toBeTruthy();
     expect(screen.getByTestId('location').textContent).toContain('Sol · Abraham Lincoln');
     expect(screen.getByTestId('cargo').textContent).toContain('96 / 192 t');
@@ -40,20 +41,20 @@ describe('CockpitPanel', () => {
   });
 
   it('shows the next hop of the active route', () => {
-    render(<CockpitPanel ship={SHIP} route={ROUTE} neutron={null} />);
+    render(<CockpitPanel ship={SHIP} route={ROUTE} neutron={null} exploration={null} />);
     expect(screen.getByText(/Hop 2 of 2/).textContent).toBeTruthy();
     expect(screen.getByText(/Wolf \/ Gamma/)).toBeTruthy();
   });
 
   it('shows completion with actual vs expected profit', () => {
     const done: ActiveRoute = { ...ROUTE, currentHop: 2, hopStatus: ['done', 'done'], actualProfit: 149_000 };
-    render(<CockpitPanel ship={SHIP} route={done} neutron={null} />);
+    render(<CockpitPanel ship={SHIP} route={done} neutron={null} exploration={null} />);
     expect(screen.getByTestId('route-complete').textContent).toContain('149,000');
     expect(screen.getByTestId('route-complete').textContent).toContain('150,000');
   });
 
   it('degrades gracefully with no data', () => {
-    render(<CockpitPanel ship={null} route={null} neutron={null} />);
+    render(<CockpitPanel ship={null} route={null} neutron={null} exploration={null} />);
     expect(screen.getByText('No commander data')).toBeTruthy();
   });
 });
@@ -202,9 +203,58 @@ describe('NeutronPlotter', () => {
 
 describe('CockpitPanel neutron card', () => {
   it('shows the active neutron route summary', () => {
-    render(<CockpitPanel ship={SHIP} route={null} neutron={NROUTE} />);
+    render(<CockpitPanel ship={SHIP} route={null} neutron={NROUTE} exploration={null} />);
     expect(screen.getByTestId('neutron-card').textContent).toContain('Waypoint 2 of 3');
     expect(screen.getByTestId('neutron-card').textContent).toContain('Jackson Sector NN-A b0');
     expect(screen.getByTestId('neutron-card').textContent).toContain('clipboard');
+  });
+});
+
+const XACTIVE: ActiveExplorationRoute = {
+  currentWaypoint: 1,
+  waypointStatus: ['done', 'next', 'pending'],
+  copiedSystem: 'Alpha Centauri',
+  route: {
+    totalJumps: 9, totalScanValue: 900000, totalMappingValue: 2000000, totalBodies: 3,
+    waypoints: [
+      { system: 'Sol', jumps: 0, bodies: [] },
+      { system: 'Alpha Centauri', jumps: 4, bodies: [
+        { name: 'Alpha Centauri B 1', subtype: 'Earth-like world', distanceToArrival: 900, scanValue: 300000, mappingValue: 700000, terraformable: false },
+      ]},
+      { system: 'Barnards Star', jumps: 5, bodies: [
+        { name: 'Barnards Star 2', subtype: 'Ammonia world', distanceToArrival: 120, scanValue: 300000, mappingValue: 650000, terraformable: true },
+      ]},
+    ],
+  },
+};
+
+describe('ExplorationRouter', () => {
+  it('prefills, shows mode chips, and renders active waypoints with bodies', () => {
+    let anchored = -1;
+    const { rerender } = render(
+      <ExplorationRouter ship={{ ...SHIP, system: 'Sol', maxJumpRange: 28.4 }} route={null}
+        onPlot={async () => ({ ok: false, error: 'x' })} onStart={() => {}} onClear={() => {}} onAnchor={(i) => (anchored = i)} />
+    );
+    expect(screen.getByDisplayValue('Sol')).toBeTruthy();
+    expect(screen.getByDisplayValue('28.4')).toBeTruthy();
+    expect(screen.getByText('Road to Riches')).toBeTruthy();
+    expect(screen.getByText('Ammonia Worlds')).toBeTruthy();
+    rerender(
+      <ExplorationRouter ship={SHIP} route={XACTIVE}
+        onPlot={async () => ({ ok: false, error: 'x' })} onStart={() => {}} onClear={() => {}} onAnchor={(i) => (anchored = i)} />
+    );
+    expect(screen.getByTestId('xwp-1').textContent).toContain('▶');
+    expect(screen.getByTestId('xwp-1').textContent).toContain('Earth-like world');
+    expect(screen.getByTestId('xwp-1').textContent).toContain('300,000');
+    fireEvent.click(within(screen.getByTestId('xwp-2')).getByText('Copy'));
+    expect(anchored).toBe(2);
+  });
+});
+
+describe('CockpitPanel exploration card', () => {
+  it('shows the active exploration route summary', () => {
+    render(<CockpitPanel ship={SHIP} route={null} neutron={null} exploration={XACTIVE} />);
+    expect(screen.getByTestId('exploration-card').textContent).toContain('Waypoint 2 of 3');
+    expect(screen.getByTestId('exploration-card').textContent).toContain('Alpha Centauri');
   });
 });

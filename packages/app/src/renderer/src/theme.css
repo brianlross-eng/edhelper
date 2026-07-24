@@ -85,3 +85,7 @@ button { font: inherit; }
   color: #7ecbff; font-size: 10px; letter-spacing: 1px; border: 1px solid #2b4a63;
   border-radius: 8px; padding: 0 6px; margin-left: 6px;
 }
+.xwp { background: var(--panel); border-radius: 8px; padding: 4px 0 8px; margin-bottom: 6px; }
+.xwp.hop-active { background: var(--card-hi); border: 1px solid var(--accent); }
+.xwp .hop { background: transparent; }
+.xbody { padding: 2px 12px 0 50px; font-size: 12px; }

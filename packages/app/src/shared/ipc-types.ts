@@ -164,4 +164,10 @@ export interface EdhelperApi {
   getNeutronRoute(): Promise<ActiveNeutronRoute | null>;
   anchorNeutronRoute(index: number): Promise<ActiveNeutronRoute | null>;
   onNeutronUpdated(cb: (r: ActiveNeutronRoute | null) => void): () => void;
+  plotExploration(req: PlotExplorationRequest): Promise<PlotExplorationResponse>;
+  startExplorationRoute(route: ExplorationRoute): Promise<ActiveExplorationRoute>;
+  clearExplorationRoute(): Promise<void>;
+  getExplorationRoute(): Promise<ActiveExplorationRoute | null>;
+  anchorExplorationRoute(index: number): Promise<ActiveExplorationRoute | null>;
+  onExplorationUpdated(cb: (r: ActiveExplorationRoute | null) => void): () => void;
 }
