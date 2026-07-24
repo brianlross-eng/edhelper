@@ -78,6 +78,7 @@ export class NeutronTracker extends EventEmitter {
         this.copied = next.system;
       } catch (err) {
         console.error('[neutron] clipboard write failed:', err);
+        this.copied = null;
       }
     } else {
       this.copied = null;

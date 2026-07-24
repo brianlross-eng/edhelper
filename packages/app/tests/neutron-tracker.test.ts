@@ -94,4 +94,15 @@ describe('NeutronTracker', () => {
     expect(active.currentWaypoint).toBe(0);
     expect(copies).toEqual(['Diso']);
   });
+
+  it('nulls copiedSystem when the clipboard write fails', () => {
+    let fail = false;
+    const tracker = new NeutronTracker({ copy: () => { if (fail) throw new Error('denied'); } });
+    tracker.start(ROUTE);
+    fail = true;
+    tracker.onJournalEvent(jump('Jackson Sector NN-A b0'));
+    const active = tracker.get()!;
+    expect(active.currentWaypoint).toBe(2);
+    expect(active.copiedSystem).toBeNull();
+  });
 });
