@@ -327,7 +327,12 @@ export class SpanshClient {
 
     for (let i = 0; i < MAX_POLLS; i++) {
       const result = await this.request(`/results/${job}`, { method: 'GET' });
-      if (result.state === 'completed' || Array.isArray(result.result)) {
+      // Queued jobs on this endpoint family can carry result: [] before
+      // completion, so an array alone is not proof the job finished.
+      if (
+        result.state === 'completed' ||
+        (Array.isArray(result.result) && result.result.length > 0)
+      ) {
         return this.mapExplorationResult(result.result ?? []);
       }
       await new Promise((r) => setTimeout(r, this.pollMs));

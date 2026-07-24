@@ -215,7 +215,7 @@ const XACTIVE: ActiveExplorationRoute = {
   waypointStatus: ['done', 'next', 'pending'],
   copiedSystem: 'Alpha Centauri',
   route: {
-    totalJumps: 9, totalScanValue: 900000, totalMappingValue: 2000000, totalBodies: 3,
+    totalJumps: 9, totalScanValue: 600000, totalMappingValue: 1350000, totalBodies: 2,
     waypoints: [
       { system: 'Sol', jumps: 0, bodies: [] },
       { system: 'Alpha Centauri', jumps: 4, bodies: [
