@@ -646,7 +646,7 @@ export function parseDumpLine(line: string): DumpSystem | null {
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `npm test -w @edhelper/engine -- dump-parse.test.ts`
-Expected: 3 tests PASS.
+Expected: all dump-parse tests PASS.
 
 - [ ] **Step 5: Commit**
 
@@ -2266,6 +2266,14 @@ From `https://downloads.spansh.co.uk/galaxy_populated.json.gz` (~2-3 GB) into `D
 
 Run: `npm run cli -w @edhelper/engine -- import-dump D:\EDHelper\data\galaxy_populated.json.gz`
 Expected: progress lines; completes without error in roughly 10-40 minutes; final stats show ~20k+ systems with stations and millions of listings; `parseErrors` should be a tiny fraction of systems (investigate if > 1%).
+
+Then sanity-check the station-type classification against real data (the parser's SURFACE_TYPES and carrier strings were written from documentation, not a real dump):
+
+```sql
+SELECT type, COUNT(*), SUM(is_surface), SUM(is_carrier) FROM stations GROUP BY type ORDER BY COUNT(*) DESC;
+```
+
+Expected: 'Drake-Class Carrier' rows all have is_carrier=1; planetary/settlement types all have is_surface=1; if a common surface type string appears with is_surface=0 (e.g. a name variant we didn't anticipate), add it to SURFACE_TYPES in `src/dump/parse.ts` and re-import.
 
 - [ ] **Step 3: Verify ship reading**
 
