@@ -43,7 +43,7 @@ export function applyEddnCommodity(db: DB, msg: EddnCommodityMessage): ApplyResu
       upsert.run(msg.marketId, cid, c.buyPrice ?? 0, c.sellPrice ?? 0, c.stock ?? 0, c.demand ?? 0);
       listings++;
     }
-    db.prepare('UPDATE stations SET market_updated_at = ? WHERE id = ?').run(toSqliteUtc(msg.timestamp) ?? msg.timestamp, msg.marketId);
+    db.prepare('UPDATE stations SET market_updated_at = ? WHERE id = ?').run(toSqliteUtc(msg.timestamp) ?? null, msg.marketId);
   });
   run();
   return { applied: true, listings };
