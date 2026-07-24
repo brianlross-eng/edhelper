@@ -47,4 +47,14 @@ describe('findCandidateHops', () => {
     expect(hopsM[0].commodity).toBe('tea');
     expect(hopsM[0].profit).toBe(50_000); // 100 units * 500
   });
+
+  it('filters stale markets with maxDataAgeDays', () => {
+    const db = seedFixture();
+    db.prepare("UPDATE stations SET market_updated_at = datetime('now', '-10 days') WHERE id = ?").run(STATIONS.beta);
+    const stale = findCandidateHops(db, STATIONS.alpha, { ...BASE, maxDataAgeDays: 5 });
+    expect(stale.some((h) => h.toStationId === STATIONS.beta)).toBe(false);
+    db.prepare("UPDATE stations SET market_updated_at = datetime('now', '-1 day') WHERE id = ?").run(STATIONS.beta);
+    const fresh = findCandidateHops(db, STATIONS.alpha, { ...BASE, maxDataAgeDays: 5 });
+    expect(fresh.some((h) => h.toStationId === STATIONS.beta)).toBe(true);
+  });
 });

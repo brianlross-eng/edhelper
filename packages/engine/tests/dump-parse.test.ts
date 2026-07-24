@@ -37,7 +37,7 @@ describe('parseDumpLine', () => {
     expect(st.padSize).toBe('L');
     expect(st.isSurface).toBe(false);
     expect(st.isCarrier).toBe(false);
-    expect(st.marketUpdatedAt).toBe('2026-07-01 12:00:00+00');
+    expect(st.marketUpdatedAt).toBe('2026-07-01 12:00:00');
     expect(st.commodities).toEqual([
       { symbol: 'gold', category: 'Metals', buyPrice: 9000, sellPrice: 8900, supply: 5000, demand: 0 },
     ]);

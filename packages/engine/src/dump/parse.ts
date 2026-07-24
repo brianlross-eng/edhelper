@@ -1,4 +1,5 @@
 import type { PadSize } from '../types.js';
+import { toSqliteUtc } from '../time.js';
 
 export interface DumpListing {
   symbol: string; // lowercase
@@ -90,7 +91,7 @@ export function parseDumpLine(line: string): DumpSystem | null {
       distToArrival: st.distanceToArrival ?? null,
       isSurface: type !== null && SURFACE_TYPES.has(type),
       isCarrier: type === 'Drake-Class Carrier',
-      marketUpdatedAt: st.market.updateTime ?? st.updateTime ?? null,
+      marketUpdatedAt: toSqliteUtc(st.market.updateTime ?? st.updateTime ?? null),
       commodities: (st.market.commodities ?? []).map((c: any) => ({
         symbol: String(c.symbol ?? c.name ?? '').toLowerCase(),
         category: c.category ?? null,

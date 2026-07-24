@@ -47,7 +47,7 @@ describe('applyEddnCommodity', () => {
     expect(silver).toBeTruthy();
 
     const st = db.prepare('SELECT market_updated_at FROM stations WHERE id = 1001').get() as any;
-    expect(st.market_updated_at).toBe('2026-07-23T02:00:00Z');
+    expect(st.market_updated_at).toBe('2026-07-23 02:00:00');
     db.close();
   });
 
