@@ -66,6 +66,7 @@ async function main(): Promise<void> {
     }
 
     case 'plot-trade': {
+      mkdirSync(dirname(dbPath), { recursive: true });
       const db = openDatabase(dbPath);
       const ship = await readShipState(journalDir);
 
@@ -133,6 +134,7 @@ async function main(): Promise<void> {
     }
 
     case 'eddn-listen': {
+      mkdirSync(dirname(dbPath), { recursive: true });
       const db = openDatabase(dbPath);
       const client = new EddnClient();
       let applied = 0;
