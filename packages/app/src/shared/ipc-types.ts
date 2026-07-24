@@ -145,6 +145,48 @@ export interface ActiveExplorationRoute {
   copiedSystem: string | null;
 }
 
+/** ------- Fleet carrier routing ------- */
+export interface PlotFleetCarrierRequest {
+  from: string;
+  to: string;
+  /** Carrier stats: Fleet = 25000/25000, Squadron = 60000/15000 (capacity/mass). */
+  capacity: number;
+  mass: number;
+  capacityUsed: number;
+}
+
+export interface FleetCarrierWaypoint {
+  system: string;
+  /** 0 for the source row, 1 per carrier jump (WaypointTracker contract). */
+  jumps: number;
+  distance: number;
+  distanceToGo: number;
+  fuelUsed: number;
+  restockAmount: number;
+  mustRestock: boolean;
+  hasIcyRing: boolean;
+  pristine: boolean;
+}
+
+export interface FleetCarrierRoute {
+  waypoints: FleetCarrierWaypoint[];
+  totalJumps: number;
+  totalDistanceLy: number;
+  /** Tritium to load before departure (mode 1) — equals the sum of per-jump fuelUsed. */
+  totalTritium: number;
+}
+
+export type PlotFleetCarrierResponse =
+  | { ok: true; result: FleetCarrierRoute }
+  | { ok: false; error: string };
+
+export interface ActiveFleetCarrierRoute {
+  route: FleetCarrierRoute;
+  currentWaypoint: number;
+  waypointStatus: WaypointStatus[];
+  copiedSystem: string | null;
+}
+
 /** ------- Renderer-facing API (window.edhelper) ------- */
 export interface EdhelperApi {
   getShipState(): Promise<ShipState>;
@@ -170,4 +212,10 @@ export interface EdhelperApi {
   getExplorationRoute(): Promise<ActiveExplorationRoute | null>;
   anchorExplorationRoute(index: number): Promise<ActiveExplorationRoute | null>;
   onExplorationUpdated(cb: (r: ActiveExplorationRoute | null) => void): () => void;
+  plotFleetCarrier(req: PlotFleetCarrierRequest): Promise<PlotFleetCarrierResponse>;
+  startCarrierRoute(route: FleetCarrierRoute): Promise<ActiveFleetCarrierRoute>;
+  clearCarrierRoute(): Promise<void>;
+  getCarrierRoute(): Promise<ActiveFleetCarrierRoute | null>;
+  anchorCarrierRoute(index: number): Promise<ActiveFleetCarrierRoute | null>;
+  onCarrierUpdated(cb: (r: ActiveFleetCarrierRoute | null) => void): () => void;
 }

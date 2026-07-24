@@ -10,6 +10,9 @@ import type {
   ExplorationRoute,
   ExplorationWaypoint,
   ExplorationBody,
+  PlotFleetCarrierRequest,
+  FleetCarrierRoute,
+  FleetCarrierWaypoint,
 } from '../shared/ipc-types.js';
 
 /*
@@ -363,6 +366,93 @@ export class SpanshClient {
       totalScanValue: allBodies.reduce((s, b) => s + b.scanValue, 0),
       totalMappingValue: allBodies.reduce((s, b) => s + b.mappingValue, 0),
       totalBodies: allBodies.length,
+    };
+  }
+
+  /*
+   * DECLARED SHAPE (canonical: fleetcarrier-route-submit.json / fleetcarrier-route-result.json,
+   * live-probed 2026-07-24 — see the findings doc's "Fleet carrier routes" section):
+   *  - POST {base}/fleetcarrier/route (form): source (id64!), repeated destinations (id64!),
+   *    capacity, mass, capacity_used, calculate_starting_fuel ('1' = compute tritium to load;
+   *    mode 0 params fuel_loaded/tritium_stored/refuel_destinations are a deferred follow-up).
+   *    SILENT-IGNORE TRAP re-confirmed live: `used_capacity` (wrong name) was accepted with a
+   *    202 and produced a plausible wrong route. Names above are the verified ones.
+   *  - GET {base}/results/{job} -> completed body result.jumps[] (source at index 0, distance 0):
+   *    { name, id64, distance, distance_to_destination, fuel_used, fuel_in_tank,
+   *      tritium_in_market, restock_amount, must_restock (0/1), has_icy_ring (bool),
+   *      is_system_pristine (bool), is_desired_destination (0/1), x, y, z }.
+   *    NO aggregate totals — summed client-side. Mode 1: total tritium = jumps[0].restock_amount
+   *    = sum(fuel_used).
+   */
+  async plotFleetCarrier(req: PlotFleetCarrierRequest): Promise<FleetCarrierRoute> {
+    const [sourceId, destId] = await Promise.all([
+      this.resolveSystemId64(req.from),
+      this.resolveSystemId64(req.to),
+    ]);
+    const form = new URLSearchParams({
+      source: sourceId,
+      capacity: String(req.capacity),
+      mass: String(req.mass),
+      capacity_used: String(req.capacityUsed),
+      calculate_starting_fuel: '1',
+    });
+    form.append('destinations', destId);
+    const submit = await this.request('/fleetcarrier/route', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: form.toString(),
+    });
+    const job = submit.job;
+    if (!job) throw new Error('Spansh did not return a job id');
+
+    for (let i = 0; i < MAX_POLLS; i++) {
+      const result = await this.request(`/results/${job}`, { method: 'GET' });
+      // Same family as neutron/riches: pending body has state 'started' and no
+      // usable result — require completion or a non-empty jumps array.
+      if (
+        result.state === 'completed' ||
+        (Array.isArray(result.result?.jumps) && result.result.jumps.length > 0)
+      ) {
+        return this.mapFleetCarrierResult(result.result?.jumps ?? []);
+      }
+      await new Promise((r) => setTimeout(r, this.pollMs));
+    }
+    throw new Error('Spansh fleet carrier job timed out');
+  }
+
+  /** Exact-name (case-insensitive) system lookup; the carrier endpoint needs id64s. */
+  private async resolveSystemId64(name: string): Promise<string> {
+    const body = await this.request('/systems/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filters: { name: { value: name } }, size: 10 }),
+    });
+    const match = (body.results ?? []).find(
+      (r: any) => String(r.name ?? '').toLowerCase() === name.toLowerCase()
+    );
+    if (!match || match.id64 === undefined || match.id64 === null) {
+      throw new Error(`Unknown system: ${name}`);
+    }
+    return String(match.id64);
+  }
+
+  private mapFleetCarrierResult(rawJumps: any[]): FleetCarrierRoute {
+    const waypoints: FleetCarrierWaypoint[] = rawJumps.map((j, i) => ({
+      system: j.name ?? '',
+      jumps: i === 0 ? 0 : 1,
+      distance: j.distance ?? 0,
+      distanceToGo: j.distance_to_destination ?? 0,
+      fuelUsed: j.fuel_used ?? 0,
+      restockAmount: j.restock_amount ?? 0,
+      mustRestock: Boolean(j.must_restock),
+      hasIcyRing: Boolean(j.has_icy_ring),
+      pristine: Boolean(j.is_system_pristine),
+    }));
+    return {
+      waypoints,
+      totalJumps: waypoints.reduce((s, w) => s + w.jumps, 0),
+      totalDistanceLy: waypoints.reduce((s, w) => s + w.distance, 0),
+      totalTritium: waypoints.reduce((s, w) => s + w.fuelUsed, 0),
     };
   }
 }
