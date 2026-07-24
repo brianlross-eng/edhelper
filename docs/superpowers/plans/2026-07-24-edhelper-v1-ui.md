@@ -18,6 +18,7 @@
 - Actual-profit tally uses new `MarketBuy`/`MarketSell` journal events (Task 1).
 - Spec's "setup screen with folder picker" for a missing journal becomes: red footer indicator + fully editable planner form + `EDHELPER_JOURNAL_DIR` env override. A picker UI can come with settings later.
 - Spec's per-hop stale-data age badges become: the global max-data-age filter plus the footer dump-age badge (hop rows don't carry `market_updated_at` in the engine's Hop type; extend later if wanted).
+- Spec's "laden jump range" prefill feeds the ETA estimate only (`shipJumpRange`); there is no visible/editable jump-range field in the v1 form.
 
 ## File Structure
 
@@ -2093,5 +2094,6 @@ git commit -m "docs: record UI-phase smoke validation results"
 - **In-app dump import/download** — needs the WAL-checkpoint + close-DB-handle dance recorded in the engine plan's follow-ups (engine host would have to close the DB during the swap).
 - **EDDN restart after engine-host crash** — the host auto-restarts, but `startEddn` is only requested once at boot; a restarted host idles until the next explicit request. Wire `EngineClient` to re-send `startEddn` after respawn.
 - **Route persistence** — the active route lives in memory; app restart loses it.
+- **Commodity-agnostic profit tally** — RouteTracker counts every MarketBuy/MarketSell while a route is active, so unrelated side-trades pollute "actual vs expected"; filter by hop commodity/station if this bothers in practice.
 - **Prefill vs user edits** — TradePlanner text fields refill from ship state the moment they're blank; pad has a touched-flag escape hatch but the text fields don't. Add per-field touched flags if "field snaps back" reports surface.
 - **Packaging/installer** (electron-builder) — out of scope for v1.

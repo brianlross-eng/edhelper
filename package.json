@@ -3,7 +3,7 @@
   "private": true,
   "workspaces": ["packages/*"],
   "scripts": {
-    "test": "npm run test -w @edhelper/engine",
+    "test": "npm run test -w @edhelper/engine && npm run test -w @edhelper/app",
     "dev": "npm run dev -w @edhelper/app"
   }
 }
