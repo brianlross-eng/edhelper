@@ -17,8 +17,6 @@ export interface PlotTradeRequest {
   padSize: PadSize;
   maxHopDistance: number;
   maxHops: number;
-  minSupply: number;
-  minDemand: number;
   allowSurface: boolean;
   allowCarriers: boolean;
   maxDistFromStar?: number;
@@ -47,18 +45,24 @@ export interface ActiveRoute {
 }
 
 /** ------- Data health ------- */
-export interface EddnHealth {
-  status: 'starting' | 'connected' | 'reconnecting' | 'stopped';
-  applied: number;
-  skipped: number;
+export interface SpanshHealth {
+  reachable: boolean;
+  lastSuccessAt: string | null;
+  lastError: string | null;
+}
+
+export interface EddnBroadcast {
+  enabled: boolean;
+  sent: number;
+  dropped: number;
+  queued: number;
 }
 
 export interface DataHealth {
-  dbPath: string;
-  dumpImportedAt: string | null;
-  eddn: EddnHealth;
+  spansh: SpanshHealth;
+  eddn: EddnBroadcast;
   journalFile: string | null;
-  /** Set when the engine host failed fatally (e.g. unopenable database). */
+  /** Set when the engine host failed fatally. */
   error?: string;
 }
 
@@ -70,7 +74,9 @@ export interface EdhelperApi {
   startRoute(route: TradeRoute): Promise<ActiveRoute>;
   clearRoute(): Promise<void>;
   getActiveRoute(): Promise<ActiveRoute | null>;
+  setEddnUpload(enabled: boolean): Promise<EddnBroadcast>;
   onShipState(cb: (s: ShipState) => void): () => void;
   onRouteUpdated(cb: (r: ActiveRoute | null) => void): () => void;
-  onEddn(cb: (e: EddnHealth) => void): () => void;
+  onEddn(cb: (e: EddnBroadcast) => void): () => void;
+  onSpansh(cb: (s: SpanshHealth) => void): () => void;
 }
