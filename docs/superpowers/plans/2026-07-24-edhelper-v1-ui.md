@@ -2093,4 +2093,5 @@ git commit -m "docs: record UI-phase smoke validation results"
 - **In-app dump import/download** — needs the WAL-checkpoint + close-DB-handle dance recorded in the engine plan's follow-ups (engine host would have to close the DB during the swap).
 - **EDDN restart after engine-host crash** — the host auto-restarts, but `startEddn` is only requested once at boot; a restarted host idles until the next explicit request. Wire `EngineClient` to re-send `startEddn` after respawn.
 - **Route persistence** — the active route lives in memory; app restart loses it.
+- **Prefill vs user edits** — TradePlanner text fields refill from ship state the moment they're blank; pad has a touched-flag escape hatch but the text fields don't. Add per-field touched flags if "field snaps back" reports surface.
 - **Packaging/installer** (electron-builder) — out of scope for v1.
