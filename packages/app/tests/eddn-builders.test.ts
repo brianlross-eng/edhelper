@@ -81,6 +81,21 @@ describe('buildJournalMessage', () => {
     expect(env.message.SystemAddress).toBe(10477373803);
   });
 
+  it('broadcasts a CarrierJump as a schema-valid journal/1 envelope', () => {
+    const raw = {
+      timestamp: '2026-07-24T02:02:00Z', event: 'CarrierJump', Docked: true,
+      StationName: 'X7F-B2L', StationType: 'FleetCarrier',
+      StarSystem: 'Gandharvi', StarPos: [-30.844, 44.594, 20.156],
+      SystemAddress: 3721329101171,
+    };
+    const env = buildJournalMessage(raw, TRACKED, OPTS)!;
+    expect(env.message.event).toBe('CarrierJump');
+    expect(env.message.StarSystem).toBe('Gandharvi');
+    const valid = validateJournal(env);
+    expect(validateJournal.errors ?? []).toEqual([]);
+    expect(valid).toBe(true);
+  });
+
   it('returns null for disallowed events and unknown position', () => {
     expect(buildJournalMessage({ timestamp: 't', event: 'Music' }, TRACKED, OPTS)).toBeNull();
     expect(

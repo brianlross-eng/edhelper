@@ -19,7 +19,7 @@ export interface TrackedPosition {
 }
 
 /** Journal events EDDN's journal/1 schema accepts and we broadcast. */
-const JOURNAL_EVENTS = new Set(['FSDJump', 'Docked', 'Scan', 'Location']);
+const JOURNAL_EVENTS = new Set(['FSDJump', 'CarrierJump', 'Docked', 'Scan', 'Location']);
 
 /** Keys journal/1 disallows, top-level and nested (matches the schema's own
  * disallow lists — stripped() applies this recursively, covering Factions[] entries). */

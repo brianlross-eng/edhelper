@@ -32,7 +32,7 @@ uploader.onChange((c) => send({ event: 'eddn', data: c }));
 
 function handleJournalEvent(raw: any, journalDir: string | undefined): void {
   if (raw.event === 'LoadGame' && raw.Commander) commander = String(raw.Commander);
-  if ((raw.event === 'FSDJump' || raw.event === 'Location') && raw.StarSystem) {
+  if ((raw.event === 'FSDJump' || raw.event === 'CarrierJump' || raw.event === 'Location') && raw.StarSystem) {
     tracked.StarSystem = raw.StarSystem;
     tracked.StarPos = raw.StarPos ?? tracked.StarPos;
     tracked.SystemAddress = raw.SystemAddress ?? tracked.SystemAddress;
