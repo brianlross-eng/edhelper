@@ -12,6 +12,7 @@ import type {
   PlotTouristRequest,
   PlotTradeRequest,
   RpcRequest,
+  SystemDistancesRequest,
 } from '../shared/ipc-types.js';
 
 const SOFTWARE = { softwareName: 'EDHelper', softwareVersion: '0.1.0' };
@@ -78,6 +79,8 @@ async function handle(req: RpcRequest): Promise<unknown> {
       return spansh.plotTourist(req.params as PlotTouristRequest);
     case 'plotExomastery':
       return spansh.plotExomastery(req.params as PlotExomasteryRequest);
+    case 'systemDistances':
+      return spansh.systemDistances(req.params as SystemDistancesRequest);
     case 'searchSystems':
       return spansh.searchSystems((req.params as { query: string }).query);
     case 'searchStations':
