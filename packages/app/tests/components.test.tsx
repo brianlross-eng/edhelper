@@ -562,6 +562,20 @@ describe('GalaxyPlotter', () => {
     expect(screen.getByText(/13.5 t fuel/)).toBeTruthy();
   });
 
+  it('clears a stale plotted result when an option changes', async () => {
+    render(
+      <GalaxyPlotter ship={SHIP} route={null}
+        onPlot={async () => ({ ok: true, result: GROUTE })}
+        onStart={() => {}} onClear={() => {}} onAnchor={() => {}} />
+    );
+    fireEvent.change(screen.getAllByRole('textbox')[1], { target: { value: 'Lave' } });
+    fireEvent.click(screen.getByText('PLOT ROUTE'));
+    expect(await screen.findByText(/replaces any other active travel route/)).toBeTruthy();
+    fireEvent.change(screen.getByDisplayValue('optimistic'), { target: { value: 'fuel' } });
+    expect(screen.queryByText(/replaces any other active travel route/)).toBeNull();
+    expect(screen.queryByText(/t fuel/)).toBeNull();
+  });
+
   it('renders the active checklist with badges, fuel column, and anchors', () => {
     let anchored = -1;
     render(

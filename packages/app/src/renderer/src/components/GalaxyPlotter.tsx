@@ -93,8 +93,8 @@ export function GalaxyPlotter({ ship, route, onPlot, onStart, onClear, onAnchor 
       setBusy(false);
       return;
     }
-    if (req.tankSize <= 0 || req.optimalMass <= 0 || req.baseMass <= 0 || req.maxFuelPerJump <= 0) {
-      setError('Fuel model values must be positive (tank, masses, max fuel per jump).');
+    if (req.fuelPower <= 0 || req.fuelMultiplier <= 0 || req.tankSize <= 0 || req.optimalMass <= 0 || req.baseMass <= 0 || req.maxFuelPerJump <= 0) {
+      setError('Fuel model values must be positive (power, multiplier, tank, masses, max fuel per jump).');
       setBusy(false);
       return;
     }
@@ -157,7 +157,7 @@ export function GalaxyPlotter({ ship, route, onPlot, onStart, onClear, onAnchor 
         </div>
         <div className="field">
           <label>Algorithm</label>
-          <select value={algorithm} onChange={(e) => setAlgorithm(e.target.value)}>
+          <select value={algorithm} onChange={(e) => { setAlgorithm(e.target.value); setResult(null); setError(null); }}>
             {ALGORITHMS.map((a) => (
               <option key={a} value={a}>{a}</option>
             ))}
@@ -166,13 +166,13 @@ export function GalaxyPlotter({ ship, route, onPlot, onStart, onClear, onAnchor 
       </div>
       <div className="checks">
         <label>
-          <input type="checkbox" checked={useSupercharge} onChange={(e) => setUseSupercharge(e.target.checked)} /> Use neutron supercharge
+          <input type="checkbox" checked={useSupercharge} onChange={(e) => { setUseSupercharge(e.target.checked); setResult(null); setError(null); }} /> Use neutron supercharge
         </label>
         <label>
-          <input type="checkbox" checked={useInjections} onChange={(e) => setUseInjections(e.target.checked)} /> Use FSD injections
+          <input type="checkbox" checked={useInjections} onChange={(e) => { setUseInjections(e.target.checked); setResult(null); setError(null); }} /> Use FSD injections
         </label>
         <label>
-          <input type="checkbox" checked={refuelScoopable} onChange={(e) => setRefuelScoopable(e.target.checked)} /> Refuel at every scoopable
+          <input type="checkbox" checked={refuelScoopable} onChange={(e) => { setRefuelScoopable(e.target.checked); setResult(null); setError(null); }} /> Refuel at every scoopable
         </label>
       </div>
       <div className="label" style={{ marginTop: 10 }}>FSD FUEL MODEL — range derives from these (no jump-range input)</div>
