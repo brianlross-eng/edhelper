@@ -134,6 +134,36 @@ beforeAll(async () => {
             ],
           })
         );
+      } else if (req.url === '/generic/route') {
+        res.statusCode = 202;
+        res.end(JSON.stringify({ job: 'GJOB', status: 'queued' }));
+      } else if (req.url?.startsWith('/results/GJOB')) {
+        res.end(
+          JSON.stringify({
+            state: 'completed', status: 'ok',
+            result: { refuel_every_scoopable: true, jumps: [
+              { name: 'Sol', distance: 0, distance_to_destination: 100, fuel_in_tank: 32, fuel_used: 0, has_neutron: false, is_scoopable: false, must_refuel: false, must_inject: 0 },
+              { name: 'Mid', distance: 60, distance_to_destination: 40, fuel_in_tank: 32, fuel_used: 5, has_neutron: true, is_scoopable: true, must_refuel: true, must_inject: 0 },
+              { name: 'End', distance: 40, distance_to_destination: 0, fuel_in_tank: 27, fuel_used: 4, has_neutron: false, is_scoopable: false, must_refuel: false, must_inject: 1 },
+            ] },
+          })
+        );
+      } else if (req.url === '/colonisation/route') {
+        res.statusCode = 202;
+        res.end(JSON.stringify({ job: 'CJOB', status: 'queued' }));
+      } else if (req.url?.startsWith('/results/CJOB')) {
+        res.end(
+          JSON.stringify({
+            state: 'completed', status: 'ok',
+            result: {
+              incomplete: true, reason: 'Could not generate route, closest found returned',
+              jumps: [
+                { name: 'Sol', distance: 0, distance_to_destination: 114.5, body_count: 40, estimated_scan_value: 605861, estimated_mapping_value: 2213988, landmark_value: 0 },
+                { name: 'SPF-LF 1', distance: 11.8, distance_to_destination: 116.4, body_count: 9, estimated_scan_value: 5205, estimated_mapping_value: 22339, landmark_value: 2000000 },
+              ],
+            },
+          })
+        );
       } else if (req.url === '/systems/search') {
         // Echo the queried name (with an id64) so the carrier plotter's exact-name
         // id64 resolution works for any system; searchSystems only maps `name`.
@@ -338,5 +368,30 @@ describe('engine-host (Spansh + EDDN)', () => {
         isTrade: false, commodities: [], expiry: 'e', bulletin: 'b',
       },
     ]);
+  });
+
+  it('plots a galaxy route end-to-end', async () => {
+    const result = await request('plotGalaxy', {
+      from: 'Sol', to: 'End', algorithm: 'optimistic', cargo: 0,
+      useSupercharge: true, useInjections: false, refuelEveryScoopable: true,
+      fuelPower: 2.45, fuelMultiplier: 0.012, optimalMass: 1050, baseMass: 316.63,
+      tankSize: 32, internalTankSize: 0.63, maxFuelPerJump: 5, rangeBoost: 0, reserveSize: 0,
+    });
+    expect(result.waypoints).toHaveLength(3);
+    expect(result.waypoints[0].jumps).toBe(0);
+    expect(result.waypoints[1]).toMatchObject({ jumps: 1, neutron: true, scoopable: true, mustRefuel: true, mustInject: false });
+    expect(result.waypoints[2].mustInject).toBe(true); // int 1 → boolean
+    expect(result.totalJumps).toBe(2);
+    expect(result.totalDistanceLy).toBe(100);
+    expect(result.totalFuel).toBe(9);
+  });
+
+  it('plots a colonisation route and surfaces the incomplete flag', async () => {
+    const result = await request('plotColonisation', { from: 'Sol', to: 'Lave' });
+    expect(result.waypoints).toHaveLength(2);
+    expect(result.waypoints[1]).toMatchObject({ jumps: 1, bodyCount: 9, scanValue: 5205, mappingValue: 22339 });
+    expect(result.totalJumps).toBe(1);
+    expect(result.incomplete).toBe(true);
+    expect(result.reason).toBe('Could not generate route, closest found returned');
   });
 });
