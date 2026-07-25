@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { LineCodec, encodeLine, decodeLine } from './rpc.js';
 import { SpanshClient } from './spansh-client.js';
+import { fetchCommunityGoals } from './frontier.js';
 import { buildCommodityMessage, buildJournalMessage, type TrackedPosition } from './eddn/builders.js';
 import { EddnUploader } from './eddn/uploader.js';
 import type {
@@ -81,6 +82,8 @@ async function handle(req: RpcRequest): Promise<unknown> {
       return spansh.plotExomastery(req.params as PlotExomasteryRequest);
     case 'systemDistances':
       return spansh.systemDistances(req.params as SystemDistancesRequest);
+    case 'communityGoals':
+      return fetchCommunityGoals();
     case 'searchSystems':
       return spansh.searchSystems((req.params as { query: string }).query);
     case 'searchStations':

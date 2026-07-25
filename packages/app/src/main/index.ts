@@ -213,6 +213,13 @@ app.whenReady().then(() => {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
   });
+  ipcMain.handle('cg:list', async () => {
+    try {
+      return { ok: true, result: await engine.request('communityGoals', undefined) };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  });
   ipcMain.handle('eddn:set', async (_e, enabled: boolean) => {
     saveSettings(app.getPath('userData'), { eddnUpload: enabled });
     try {

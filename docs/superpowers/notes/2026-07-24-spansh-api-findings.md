@@ -833,3 +833,18 @@ Sub-second 202; completed by first poll (~5 s). No rate-limit headers.
 | `landmark_value` ≠ sum of `landmarks[].value` | **New quirk** — 35,275,300 vs 31,945,700 in fixture; don't derive |
 | Source waypoint `jumps: 1` (riches quirk) on exobiology | **Confirmed** — normalize to 0 |
 | Pending envelope for these two endpoints | **Not captured** (both jobs completed by first poll, ~4-5 s) — assumed same as siblings |
+
+## Community goals (probed 2026-07-24)
+
+NOT a Spansh endpoint. Spansh's /community-goals page calls Frontier's API
+directly (extracted from `services/frontier` + `objects/goal` in bundle
+elite-dangerous-gui-7c4a80cd...):
+
+- `GET https://api.orerve.net/2.0/website/initiatives/list?lang=en` (no auth;
+  `frontierApiServer` config = https://api.orerve.net)
+- Response: `{ "activeInitiatives": [ ... ] }` — live-checked, currently `[]`
+  (CGs are intermittent events; populated shape pinned by fixture tests).
+- Initiative fields Spansh's goal normalizer reads: `title`, `bulletin`
+  (HTML-ish text), `expiry` (UTC timestamp), `activityType` (`"tradelist"` =
+  trade CG), `target_commodity_list` (comma-separated string, only meaningful
+  for tradelist), `starsystem_name`, `market_name`.
