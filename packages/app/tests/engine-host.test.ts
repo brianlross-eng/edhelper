@@ -137,8 +137,11 @@ beforeAll(async () => {
       } else if (req.url === '/systems/search') {
         // Echo the queried name (with an id64) so the carrier plotter's exact-name
         // id64 resolution works for any system; searchSystems only maps `name`.
+        // Coords support the distances calc: Sol at origin, everything else at
+        // (3,4,0) — a clean 5 ly hypotenuse.
         const queried = JSON.parse(body)?.filters?.name?.value ?? 'Lave';
-        res.end(JSON.stringify({ results: [{ name: queried, id64: 42 }] }));
+        const coords = queried === 'Sol' ? { x: 0, y: 0, z: 0 } : { x: 3, y: 4, z: 0 };
+        res.end(JSON.stringify({ results: [{ name: queried, id64: 42, ...coords }] }));
       } else if (req.url === '/stations/search') {
         res.end(JSON.stringify({ results: [{ name: 'Lave Station', system_name: 'Lave' }] }));
       } else {
@@ -298,6 +301,12 @@ describe('engine-host (Spansh + EDDN)', () => {
     expect(result.waypoints[0].jumps).toBe(0);
     expect(result.totalLandmarkValue).toBe(5000000);
     expect(result.waypoints[1].bodies[0].landmarks).toHaveLength(1);
+  });
+
+  it('computes system distances end-to-end', async () => {
+    const res = await request('systemDistances', { from: 'Sol', systems: ['A'] });
+    expect(res.rows).toEqual([{ system: 'A', distanceLy: 5 }]);
+    expect(res.unknown).toEqual([]);
   });
 
   it('plots a fleet carrier route end-to-end', async () => {

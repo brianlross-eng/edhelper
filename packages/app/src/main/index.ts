@@ -206,6 +206,13 @@ app.whenReady().then(() => {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
   });
+  ipcMain.handle('distances:compute', async (_e, req) => {
+    try {
+      return { ok: true, result: await engine.request('systemDistances', req) };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  });
   ipcMain.handle('eddn:set', async (_e, enabled: boolean) => {
     saveSettings(app.getPath('userData'), { eddnUpload: enabled });
     try {

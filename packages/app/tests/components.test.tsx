@@ -15,6 +15,7 @@ import { NeutronPlotter } from '../src/renderer/src/components/NeutronPlotter';
 import { ExplorationRouter } from '../src/renderer/src/components/ExplorationRouter';
 import { FleetCarrierRouter } from '../src/renderer/src/components/FleetCarrierRouter';
 import { TouristPlanner } from '../src/renderer/src/components/TouristPlanner';
+import { SystemDistances } from '../src/renderer/src/components/SystemDistances';
 import { DataHealthFooter } from '../src/renderer/src/components/DataHealthFooter';
 
 afterEach(cleanup);
@@ -460,5 +461,34 @@ describe('CockpitPanel tourist card', () => {
     render(<CockpitPanel ship={SHIP} route={null} neutron={null} exploration={null} carrier={null} tourist={TACTIVE} />);
     expect(screen.getByTestId('tourist-card').textContent).toContain('Waypoint 2 of 5');
     expect(screen.getByTestId('tourist-card').textContent).toContain('Alpha Centauri');
+  });
+});
+
+describe('SystemDistances', () => {
+  it('prefills From, computes, renders sorted rows and unknowns', async () => {
+    render(
+      <SystemDistances ship={SHIP}
+        onCompute={async () => ({ ok: true, result: {
+          from: 'Sol',
+          rows: [
+            { system: 'Alpha Centauri', distanceLy: 4.38 },
+            { system: 'Lave', distanceLy: 114.54 },
+          ],
+          unknown: ['Nowhereia'],
+        } })} />
+    );
+    expect(screen.getByDisplayValue('Sol')).toBeTruthy();
+    fireEvent.change(screen.getAllByRole('textbox')[1], { target: { value: 'Lave\nNowhereia\nAlpha Centauri' } });
+    fireEvent.click(screen.getByText('COMPUTE'));
+    expect(await screen.findByText('Alpha Centauri')).toBeTruthy();
+    expect(screen.getByTestId('dist-row-0').textContent).toContain('4.38');
+    expect(screen.getByTestId('dist-row-1').textContent).toContain('114.54');
+    expect(screen.getByText(/Not found: Nowhereia/)).toBeTruthy();
+  });
+
+  it('validates empty input', async () => {
+    render(<SystemDistances ship={SHIP} onCompute={async () => ({ ok: false, error: 'x' })} />);
+    fireEvent.click(screen.getByText('COMPUTE'));
+    expect(await screen.findByText(/Enter a reference system and at least one target/)).toBeTruthy();
   });
 });

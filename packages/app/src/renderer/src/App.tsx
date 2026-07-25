@@ -8,6 +8,7 @@ import { NeutronPlotter } from './components/NeutronPlotter';
 import { ExplorationRouter } from './components/ExplorationRouter';
 import { FleetCarrierRouter } from './components/FleetCarrierRouter';
 import { TouristPlanner } from './components/TouristPlanner';
+import { SystemDistances } from './components/SystemDistances';
 import { DataHealthFooter } from './components/DataHealthFooter';
 
 export function App() {
@@ -17,7 +18,7 @@ export function App() {
   const [exploration, setExploration] = useState<ActiveExplorationRoute | null>(null);
   const [carrier, setCarrier] = useState<ActiveFleetCarrierRoute | null>(null);
   const [tourist, setTourist] = useState<ActiveTouristRoute | null>(null);
-  const [tool, setTool] = useState<'trade' | 'neutron' | 'exploration' | 'carrier' | 'tourist'>('trade');
+  const [tool, setTool] = useState<'trade' | 'neutron' | 'exploration' | 'carrier' | 'tourist' | 'distances'>('trade');
   const [health, setHealth] = useState<DataHealth | null>(null);
 
   useEffect(() => {
@@ -70,6 +71,9 @@ export function App() {
           <button className={`tool-tab ${tool === 'tourist' ? 'active' : ''}`} onClick={() => setTool('tourist')}>
             TOURIST
           </button>
+          <button className={`tool-tab ${tool === 'distances' ? 'active' : ''}`} onClick={() => setTool('distances')}>
+            DISTANCES
+          </button>
         </div>
         {tool === 'trade' ? (
           <TradePlanner
@@ -107,7 +111,7 @@ export function App() {
             onClear={() => void api.clearCarrierRoute()}
             onAnchor={(i) => void api.anchorCarrierRoute(i)}
           />
-        ) : (
+        ) : tool === 'tourist' ? (
           <TouristPlanner
             ship={ship}
             route={tourist}
@@ -116,6 +120,8 @@ export function App() {
             onClear={() => void api.clearTouristRoute()}
             onAnchor={(i) => void api.anchorTouristRoute(i)}
           />
+        ) : (
+          <SystemDistances ship={ship} onCompute={(req) => api.computeDistances(req)} />
         )}
       </main>
       <DataHealthFooter
