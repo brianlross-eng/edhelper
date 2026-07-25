@@ -263,6 +263,97 @@ export type SystemDistancesResponse =
   | { ok: true; result: SystemDistancesResult }
   | { ok: false; error: string };
 
+/** ------- Galaxy plotter (Spansh exact plotter, /api/generic/route) ------- */
+export interface PlotGalaxyRequest {
+  from: string;
+  to: string;
+  /** One of: fuel, fuel_jumps, guided, optimistic, pessimistic (Spansh default: optimistic). */
+  algorithm: string;
+  cargo: number;
+  useSupercharge: boolean;
+  useInjections: boolean;
+  refuelEveryScoopable: boolean;
+  /** 8-field FSD fuel model + reserve — range is derived server-side from these (no jump-range param). */
+  fuelPower: number;
+  fuelMultiplier: number;
+  optimalMass: number;
+  baseMass: number;
+  tankSize: number;
+  internalTankSize: number;
+  maxFuelPerJump: number;
+  rangeBoost: number;
+  reserveSize: number;
+}
+
+export interface GalaxyWaypoint {
+  system: string;
+  /** 0 for the source row, 1 per plotted jump (WaypointTracker contract). */
+  jumps: number;
+  distance: number;
+  distanceToGo: number;
+  fuelUsed: number;
+  fuelInTank: number;
+  neutron: boolean;
+  scoopable: boolean;
+  mustRefuel: boolean;
+  mustInject: boolean;
+}
+
+export interface GalaxyRoute {
+  waypoints: GalaxyWaypoint[];
+  totalJumps: number;
+  totalDistanceLy: number;
+  /** Sum of per-jump fuelUsed (t) — no aggregate comes from the API. */
+  totalFuel: number;
+}
+
+export type PlotGalaxyResponse = { ok: true; result: GalaxyRoute } | { ok: false; error: string };
+
+export interface ActiveGalaxyRoute {
+  route: GalaxyRoute;
+  currentWaypoint: number;
+  waypointStatus: WaypointStatus[];
+  copiedSystem: string | null;
+}
+
+/** ------- Colonisation routing (/api/colonisation/route) ------- */
+export interface PlotColonisationRequest {
+  from: string;
+  to: string;
+}
+
+export interface ColonisationWaypoint {
+  system: string;
+  /** 0 for the source row, 1 per hop (WaypointTracker contract); hops are capped ~15 ly by the API. */
+  jumps: number;
+  distance: number;
+  distanceToGo: number;
+  bodyCount: number;
+  scanValue: number;
+  mappingValue: number;
+}
+
+export interface ColonisationRoute {
+  waypoints: ColonisationWaypoint[];
+  totalJumps: number;
+  totalDistanceLy: number;
+  /** TRAP: Spansh completes unreachable pairs with a partial dead-end route and
+   *  incomplete: true + reason. Always false on a genuine success (keys absent upstream). */
+  incomplete: boolean;
+  reason?: string;
+}
+
+export type PlotColonisationResponse =
+  | { ok: true; result: ColonisationRoute }
+  | { ok: false; error: string };
+
+export interface ActiveColonisationRoute {
+  route: ColonisationRoute;
+  currentWaypoint: number;
+  waypointStatus: WaypointStatus[];
+  copiedSystem: string | null;
+}
+
 /** ------- Community goals (Frontier initiatives API, via the engine host) ------- */
 export interface CommunityGoal {
   title: string;
@@ -320,4 +411,16 @@ export interface EdhelperApi {
   plotExomastery(req: PlotExomasteryRequest): Promise<PlotExplorationResponse>;
   computeDistances(req: SystemDistancesRequest): Promise<SystemDistancesResponse>;
   getCommunityGoals(): Promise<CommunityGoalsResponse>;
+  plotGalaxy(req: PlotGalaxyRequest): Promise<PlotGalaxyResponse>;
+  startGalaxyRoute(route: GalaxyRoute): Promise<ActiveGalaxyRoute>;
+  clearGalaxyRoute(): Promise<void>;
+  getGalaxyRoute(): Promise<ActiveGalaxyRoute | null>;
+  anchorGalaxyRoute(index: number): Promise<ActiveGalaxyRoute | null>;
+  onGalaxyUpdated(cb: (r: ActiveGalaxyRoute | null) => void): () => void;
+  plotColonisation(req: PlotColonisationRequest): Promise<PlotColonisationResponse>;
+  startColonisationRoute(route: ColonisationRoute): Promise<ActiveColonisationRoute>;
+  clearColonisationRoute(): Promise<void>;
+  getColonisationRoute(): Promise<ActiveColonisationRoute | null>;
+  anchorColonisationRoute(index: number): Promise<ActiveColonisationRoute | null>;
+  onColonisationUpdated(cb: (r: ActiveColonisationRoute | null) => void): () => void;
 }

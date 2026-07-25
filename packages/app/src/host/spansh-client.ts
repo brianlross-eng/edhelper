@@ -20,6 +20,12 @@ import type {
   SystemDistancesRequest,
   SystemDistanceRow,
   SystemDistancesResult,
+  PlotGalaxyRequest,
+  GalaxyRoute,
+  GalaxyWaypoint,
+  PlotColonisationRequest,
+  ColonisationRoute,
+  ColonisationWaypoint,
 } from '../shared/ipc-types.js';
 
 /*
@@ -636,6 +642,166 @@ export class SpanshClient {
       await new Promise((r) => setTimeout(r, this.pollMs));
     }
     throw new Error('Spansh exomastery job timed out');
+  }
+
+  /*
+   * DECLARED SHAPE (canonical: galaxy-route-submit.json / galaxy-route-result.json,
+   * live-probed 2026-07-25 — see the findings doc's "Galaxy plotter routes" section):
+   *  - POST {base}/generic/route (form) — the Galaxy Plotter is the site's /exact-plotter
+   *    page, NOT /plotter (that page is the neutron router already handled by plotNeutron).
+   *    source/destination are system id64s (resolved from names via searchSystemRecord,
+   *    same as fleet carrier). There is NO jump-range param: range derives server-side
+   *    from the FSD fuel model (fuel_power, fuel_multiplier, optimal_mass, base_mass,
+   *    tank_size, internal_tank_size, max_fuel_per_jump, range_boost) + reserve_size.
+   *    Fixed this release: is_supercharged=0, use_injections_when_required=0,
+   *    exclude_secondary=0, max_time=60, supercharge_multiplier=4, injection_multiplier=2.
+   *    ship_build is OPTIONAL server-side and deliberately omitted (probe-confirmed;
+   *    echo shows ship_build: null). Can reject inline on submit with
+   *    { status: 'error', error: '<message>' }.
+   *  - GET {base}/results/{job} -> completed body result.jumps[] (source at index 0,
+   *    distance 0) + a stray result.refuel_every_scoopable — per jump: { name, id64,
+   *    x, y, z, distance, distance_to_destination, fuel_in_tank (t AFTER arrival+refuel),
+   *    fuel_used, has_neutron (bool), is_scoopable (bool), must_refuel (BOOL),
+   *    must_inject (INT 0/1 — mixed flag typing in one object, same trap as fleet
+   *    carrier's must_restock) }. NO aggregate totals — summed client-side.
+   */
+  async plotGalaxy(req: PlotGalaxyRequest): Promise<GalaxyRoute> {
+    const [sourceId, destId] = await Promise.all([
+      this.resolveSystemId64(req.from),
+      this.resolveSystemId64(req.to),
+    ]);
+    const form = new URLSearchParams({
+      source: sourceId,
+      destination: destId,
+      is_supercharged: '0',
+      use_supercharge: req.useSupercharge ? '1' : '0',
+      use_injections: req.useInjections ? '1' : '0',
+      use_injections_when_required: '0',
+      exclude_secondary: '0',
+      refuel_every_scoopable: req.refuelEveryScoopable ? '1' : '0',
+      fuel_power: String(req.fuelPower),
+      fuel_multiplier: String(req.fuelMultiplier),
+      optimal_mass: String(req.optimalMass),
+      base_mass: String(req.baseMass),
+      tank_size: String(req.tankSize),
+      internal_tank_size: String(req.internalTankSize),
+      reserve_size: String(req.reserveSize),
+      max_fuel_per_jump: String(req.maxFuelPerJump),
+      range_boost: String(req.rangeBoost),
+      max_time: '60',
+      cargo: String(req.cargo),
+      algorithm: req.algorithm,
+      supercharge_multiplier: '4',
+      injection_multiplier: '2',
+    });
+    const submit = await this.request('/generic/route', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: form.toString(),
+    });
+    if (submit.status === 'error') throw new Error(String(submit.error ?? 'Spansh rejected the request'));
+    const job = submit.job;
+    if (!job) throw new Error('Spansh did not return a job id');
+
+    for (let i = 0; i < MAX_POLLS; i++) {
+      const result = await this.request(`/results/${job}`, { method: 'GET' });
+      // Same family as neutron/riches: pending body has state 'started' and no
+      // usable result — require completion or a non-empty jumps array.
+      if (
+        result.state === 'completed' ||
+        (Array.isArray(result.result?.jumps) && result.result.jumps.length > 0)
+      ) {
+        return this.mapGalaxyResult(result.result?.jumps ?? []);
+      }
+      await new Promise((r) => setTimeout(r, this.pollMs));
+    }
+    throw new Error('Spansh galaxy job timed out');
+  }
+
+  private mapGalaxyResult(rawJumps: any[]): GalaxyRoute {
+    const waypoints: GalaxyWaypoint[] = rawJumps.map((j, i) => ({
+      system: j.name ?? '',
+      jumps: i === 0 ? 0 : 1,
+      distance: j.distance ?? 0,
+      distanceToGo: j.distance_to_destination ?? 0,
+      fuelUsed: j.fuel_used ?? 0,
+      fuelInTank: j.fuel_in_tank ?? 0,
+      neutron: Boolean(j.has_neutron),
+      scoopable: Boolean(j.is_scoopable),
+      mustRefuel: Boolean(j.must_refuel),
+      // must_inject is an int (0/1), not a boolean like must_refuel — normalize.
+      mustInject: (j.must_inject ?? 0) > 0,
+    }));
+    return {
+      waypoints,
+      totalJumps: waypoints.reduce((s, w) => s + w.jumps, 0),
+      totalDistanceLy: waypoints.reduce((s, w) => s + w.distance, 0),
+      totalFuel: waypoints.reduce((s, w) => s + w.fuelUsed, 0),
+    };
+  }
+
+  /*
+   * DECLARED SHAPE (canonical: colonisation-route-submit.json / colonisation-route-result.json
+   * / colonisation-route-incomplete.json, live-probed 2026-07-25 — see the findings doc's
+   * "Colonisation routes" section):
+   *  - POST {base}/colonisation/route (form): source_system + destination_system (system
+   *    NAMES — the only probed endpoint whose submit keys already carry the _system suffix;
+   *    the parameters echo keeps them unchanged). That is the ENTIRE request. Can reject
+   *    inline on submit with { status: 'error', error: '<message>' }.
+   *  - GET {base}/results/{job} -> completed body result.jumps[] (source at index 0,
+   *    distance 0), per waypoint: { name, id64, x, y, z, distance, distance_to_destination,
+   *    body_count, estimated_scan_value, estimated_mapping_value, landmark_value (0 when
+   *    none, NOT null) }. Hops capped ~15 ly (colonisation claim range). NO aggregates.
+   *    TRAP: unreachable pairs still complete (state 'completed', HTTP 200) with
+   *    result.incomplete: true + result.reason and a partial DEAD-END jumps array
+   *    (distance_to_destination non-monotonic, final waypoint is not the destination).
+   *    On success the incomplete/reason keys are entirely absent — map
+   *    incomplete: Boolean(...) and carry reason only when present.
+   */
+  async plotColonisation(req: PlotColonisationRequest): Promise<ColonisationRoute> {
+    const form = new URLSearchParams({
+      source_system: req.from,
+      destination_system: req.to,
+    });
+    const submit = await this.request('/colonisation/route', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: form.toString(),
+    });
+    if (submit.status === 'error') throw new Error(String(submit.error ?? 'Spansh rejected the request'));
+    const job = submit.job;
+    if (!job) throw new Error('Spansh did not return a job id');
+
+    for (let i = 0; i < MAX_POLLS; i++) {
+      const result = await this.request(`/results/${job}`, { method: 'GET' });
+      if (
+        result.state === 'completed' ||
+        (Array.isArray(result.result?.jumps) && result.result.jumps.length > 0)
+      ) {
+        return this.mapColonisationResult(result.result ?? {});
+      }
+      await new Promise((r) => setTimeout(r, this.pollMs));
+    }
+    throw new Error('Spansh colonisation job timed out');
+  }
+
+  private mapColonisationResult(raw: any): ColonisationRoute {
+    const waypoints: ColonisationWaypoint[] = (raw.jumps ?? []).map((j: any, i: number) => ({
+      system: j.name ?? '',
+      jumps: i === 0 ? 0 : 1,
+      distance: j.distance ?? 0,
+      distanceToGo: j.distance_to_destination ?? 0,
+      bodyCount: j.body_count ?? 0,
+      scanValue: j.estimated_scan_value ?? 0,
+      mappingValue: j.estimated_mapping_value ?? 0,
+    }));
+    return {
+      waypoints,
+      totalJumps: waypoints.reduce((s, w) => s + w.jumps, 0),
+      totalDistanceLy: waypoints.reduce((s, w) => s + w.distance, 0),
+      incomplete: Boolean(raw.incomplete),
+      ...(raw.reason !== undefined ? { reason: String(raw.reason) } : {}),
+    };
   }
 }
 
