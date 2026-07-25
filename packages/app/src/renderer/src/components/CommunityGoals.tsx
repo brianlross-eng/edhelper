@@ -44,7 +44,9 @@ export function CommunityGoals({ onFetch }: CommunityGoalsProps) {
               {g.isTrade ? <span className="pill-neutron"> TRADE</span> : null}
             </span>
             <span className="muted">{g.system} · {g.station}</span>
-            <span className="muted">ends {new Date(g.expiry).toLocaleString()}</span>
+            <span className="muted">
+              {Number.isNaN(new Date(g.expiry).getTime()) ? '' : `ends ${new Date(g.expiry).toLocaleString()}`}
+            </span>
           </div>
           {g.commodities.length > 0 && (
             <div className="xbody muted">Deliver: {g.commodities.join(', ')}</div>

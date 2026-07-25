@@ -13,8 +13,16 @@ import type { CommunityGoal } from '../shared/ipc-types.js';
 const DEFAULT_BASE = 'https://api.orerve.net';
 const USER_AGENT = 'EDHelper/0.1';
 
+const ENTITIES: Record<string, string> = {
+  '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'", '&apos;': "'", '&nbsp;': ' ',
+};
+
 function stripHtml(text: string): string {
-  return text.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+  return text
+    .replace(/<[^>]*>/g, '')
+    .replace(/&[a-z#0-9]+;/gi, (e) => ENTITIES[e.toLowerCase()] ?? e)
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 export async function fetchCommunityGoals(fetchFn: typeof fetch = fetch): Promise<CommunityGoal[]> {
