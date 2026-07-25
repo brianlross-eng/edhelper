@@ -1,7 +1,7 @@
 import type { ShipState } from '@edhelper/engine';
-import type { ActiveRoute, ActiveNeutronRoute, ActiveExplorationRoute, ActiveFleetCarrierRoute, ActiveTouristRoute } from '../../../shared/ipc-types';
+import type { ActiveRoute, ActiveNeutronRoute, ActiveExplorationRoute, ActiveFleetCarrierRoute, ActiveTouristRoute, ActiveGalaxyRoute, ActiveColonisationRoute } from '../../../shared/ipc-types';
 
-export function CockpitPanel({ ship, route, neutron, exploration, carrier, tourist }: { ship: ShipState | null; route: ActiveRoute | null; neutron: ActiveNeutronRoute | null; exploration: ActiveExplorationRoute | null; carrier: ActiveFleetCarrierRoute | null; tourist: ActiveTouristRoute | null }) {
+export function CockpitPanel({ ship, route, neutron, exploration, carrier, tourist, galaxy, colonisation }: { ship: ShipState | null; route: ActiveRoute | null; neutron: ActiveNeutronRoute | null; exploration: ActiveExplorationRoute | null; carrier: ActiveFleetCarrierRoute | null; tourist: ActiveTouristRoute | null; galaxy: ActiveGalaxyRoute | null; colonisation: ActiveColonisationRoute | null }) {
   const cargoPct = ship?.cargoCapacity ? Math.min(100, ((ship.cargoUsed ?? 0) / ship.cargoCapacity) * 100) : 0;
   const nextHop = route && route.currentHop < route.route.hops.length ? route.route.hops[route.currentHop] : null;
   return (
@@ -99,6 +99,36 @@ export function CockpitPanel({ ship, route, neutron, exploration, carrier, touri
             </>
           ) : (
             <div>Route complete · {tourist.route.totalJumps} jumps</div>
+          )}
+        </div>
+      )}
+
+      {galaxy && (
+        <div className="route-box" data-testid="galaxy-card">
+          <div className="label" style={{ marginTop: 0 }}>GALAXY PLOTTER</div>
+          {galaxy.currentWaypoint < galaxy.route.waypoints.length ? (
+            <>
+              <div className="muted">Waypoint {galaxy.currentWaypoint + 1} of {galaxy.route.waypoints.length}</div>
+              <div className="next-hop">▶ {galaxy.route.waypoints[galaxy.currentWaypoint].system}</div>
+              <div className="muted">on clipboard — paste in galaxy map</div>
+            </>
+          ) : (
+            <div>Route complete · {galaxy.route.totalJumps} jumps</div>
+          )}
+        </div>
+      )}
+
+      {colonisation && (
+        <div className="route-box" data-testid="colonisation-card">
+          <div className="label" style={{ marginTop: 0 }}>COLONISATION</div>
+          {colonisation.currentWaypoint < colonisation.route.waypoints.length ? (
+            <>
+              <div className="muted">Waypoint {colonisation.currentWaypoint + 1} of {colonisation.route.waypoints.length}</div>
+              <div className="next-hop">▶ {colonisation.route.waypoints[colonisation.currentWaypoint].system}</div>
+              <div className="muted">on clipboard — paste in galaxy map</div>
+            </>
+          ) : (
+            <div>Route complete · {colonisation.route.totalJumps} jumps</div>
           )}
         </div>
       )}

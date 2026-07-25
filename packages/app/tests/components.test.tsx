@@ -7,6 +7,8 @@ import type {
   FleetCarrierRoute, PlotFleetCarrierRequest,
   ExplorationRoute, PlotExomasteryRequest,
   TouristRoute, ActiveTouristRoute, PlotTouristRequest,
+  GalaxyRoute, ActiveGalaxyRoute, PlotGalaxyRequest,
+  ColonisationRoute, ActiveColonisationRoute, PlotColonisationRequest,
   CommunityGoal,
 } from '../src/shared/ipc-types';
 import { CockpitPanel } from '../src/renderer/src/components/CockpitPanel';
@@ -16,6 +18,8 @@ import { NeutronPlotter } from '../src/renderer/src/components/NeutronPlotter';
 import { ExplorationRouter } from '../src/renderer/src/components/ExplorationRouter';
 import { FleetCarrierRouter } from '../src/renderer/src/components/FleetCarrierRouter';
 import { TouristPlanner } from '../src/renderer/src/components/TouristPlanner';
+import { GalaxyPlotter } from '../src/renderer/src/components/GalaxyPlotter';
+import { ColonisationPlotter } from '../src/renderer/src/components/ColonisationPlotter';
 import { SystemDistances } from '../src/renderer/src/components/SystemDistances';
 import { CommunityGoals } from '../src/renderer/src/components/CommunityGoals';
 import { DataHealthFooter } from '../src/renderer/src/components/DataHealthFooter';
@@ -43,7 +47,7 @@ const ROUTE: ActiveRoute = {
 
 describe('CockpitPanel', () => {
   it('shows commander, location, and cargo from ship state', () => {
-    render(<CockpitPanel ship={SHIP} route={null} neutron={null} exploration={null} carrier={null} tourist={null} />);
+    render(<CockpitPanel ship={SHIP} route={null} neutron={null} exploration={null} carrier={null} tourist={null} galaxy={null} colonisation={null} />);
     expect(screen.getByText('CMDR Bross')).toBeTruthy();
     expect(screen.getByTestId('location').textContent).toContain('Sol · Abraham Lincoln');
     expect(screen.getByTestId('cargo').textContent).toContain('96 / 192 t');
@@ -51,20 +55,20 @@ describe('CockpitPanel', () => {
   });
 
   it('shows the next hop of the active route', () => {
-    render(<CockpitPanel ship={SHIP} route={ROUTE} neutron={null} exploration={null} carrier={null} tourist={null} />);
+    render(<CockpitPanel ship={SHIP} route={ROUTE} neutron={null} exploration={null} carrier={null} tourist={null} galaxy={null} colonisation={null} />);
     expect(screen.getByText(/Hop 2 of 2/).textContent).toBeTruthy();
     expect(screen.getByText(/Wolf \/ Gamma/)).toBeTruthy();
   });
 
   it('shows completion with actual vs expected profit', () => {
     const done: ActiveRoute = { ...ROUTE, currentHop: 2, hopStatus: ['done', 'done'], actualProfit: 149_000 };
-    render(<CockpitPanel ship={SHIP} route={done} neutron={null} exploration={null} carrier={null} tourist={null} />);
+    render(<CockpitPanel ship={SHIP} route={done} neutron={null} exploration={null} carrier={null} tourist={null} galaxy={null} colonisation={null} />);
     expect(screen.getByTestId('route-complete').textContent).toContain('149,000');
     expect(screen.getByTestId('route-complete').textContent).toContain('150,000');
   });
 
   it('degrades gracefully with no data', () => {
-    render(<CockpitPanel ship={null} route={null} neutron={null} exploration={null} carrier={null} tourist={null} />);
+    render(<CockpitPanel ship={null} route={null} neutron={null} exploration={null} carrier={null} tourist={null} galaxy={null} colonisation={null} />);
     expect(screen.getByText('No commander data')).toBeTruthy();
   });
 });
@@ -223,7 +227,7 @@ describe('NeutronPlotter', () => {
 
 describe('CockpitPanel neutron card', () => {
   it('shows the active neutron route summary', () => {
-    render(<CockpitPanel ship={SHIP} route={null} neutron={NROUTE} exploration={null} carrier={null} tourist={null} />);
+    render(<CockpitPanel ship={SHIP} route={null} neutron={NROUTE} exploration={null} carrier={null} tourist={null} galaxy={null} colonisation={null} />);
     expect(screen.getByTestId('neutron-card').textContent).toContain('Waypoint 2 of 3');
     expect(screen.getByTestId('neutron-card').textContent).toContain('Jackson Sector NN-A b0');
     expect(screen.getByTestId('neutron-card').textContent).toContain('clipboard');
@@ -321,7 +325,7 @@ describe('ExplorationRouter', () => {
 
 describe('CockpitPanel exploration card', () => {
   it('shows the active exploration route summary', () => {
-    render(<CockpitPanel ship={SHIP} route={null} neutron={null} exploration={XACTIVE} carrier={null} tourist={null} />);
+    render(<CockpitPanel ship={SHIP} route={null} neutron={null} exploration={XACTIVE} carrier={null} tourist={null} galaxy={null} colonisation={null} />);
     expect(screen.getByTestId('exploration-card').textContent).toContain('Waypoint 2 of 3');
     expect(screen.getByTestId('exploration-card').textContent).toContain('Alpha Centauri');
   });
@@ -398,7 +402,7 @@ describe('FleetCarrierRouter', () => {
 
 describe('CockpitPanel carrier card', () => {
   it('shows the active carrier route summary', () => {
-    render(<CockpitPanel ship={SHIP} route={null} neutron={null} exploration={null} carrier={FCACTIVE} tourist={null} />);
+    render(<CockpitPanel ship={SHIP} route={null} neutron={null} exploration={null} carrier={FCACTIVE} tourist={null} galaxy={null} colonisation={null} />);
     expect(screen.getByTestId('carrier-card').textContent).toContain('Waypoint 2 of 3');
     expect(screen.getByTestId('carrier-card').textContent).toContain('Mid');
   });
@@ -460,7 +464,7 @@ describe('TouristPlanner', () => {
 
 describe('CockpitPanel tourist card', () => {
   it('shows the active tourist route summary', () => {
-    render(<CockpitPanel ship={SHIP} route={null} neutron={null} exploration={null} carrier={null} tourist={TACTIVE} />);
+    render(<CockpitPanel ship={SHIP} route={null} neutron={null} exploration={null} carrier={null} tourist={TACTIVE} galaxy={null} colonisation={null} />);
     expect(screen.getByTestId('tourist-card').textContent).toContain('Waypoint 2 of 5');
     expect(screen.getByTestId('tourist-card').textContent).toContain('Alpha Centauri');
   });
@@ -514,5 +518,138 @@ describe('CommunityGoals', () => {
   it('shows the empty state', async () => {
     render(<CommunityGoals onFetch={async () => ({ ok: true, result: [] })} />);
     expect(await screen.findByText(/No active community goals right now/)).toBeTruthy();
+  });
+});
+
+const GROUTE: GalaxyRoute = {
+  totalJumps: 3, totalDistanceLy: 160, totalFuel: 13.5,
+  waypoints: [
+    { system: 'Sol', jumps: 0, distance: 0, distanceToGo: 160, fuelUsed: 0, fuelInTank: 32, neutron: false, scoopable: false, mustRefuel: false, mustInject: false },
+    { system: 'Jackson Sector NN-A b0', jumps: 1, distance: 60, distanceToGo: 100, fuelUsed: 5, fuelInTank: 27, neutron: true, scoopable: false, mustRefuel: false, mustInject: false },
+    { system: 'Scoopy', jumps: 1, distance: 55, distanceToGo: 45, fuelUsed: 4.5, fuelInTank: 32, neutron: false, scoopable: true, mustRefuel: true, mustInject: false },
+    { system: 'Lave', jumps: 1, distance: 45, distanceToGo: 0, fuelUsed: 4, fuelInTank: 28, neutron: false, scoopable: false, mustRefuel: false, mustInject: true },
+  ],
+};
+const GACTIVE: ActiveGalaxyRoute = {
+  route: GROUTE, currentWaypoint: 1,
+  waypointStatus: ['done', 'next', 'pending', 'pending'],
+  copiedSystem: 'Jackson Sector NN-A b0',
+};
+
+describe('GalaxyPlotter', () => {
+  it('prefills From/cargo, submits the probe-default fuel model, and shows badges', async () => {
+    let seen: PlotGalaxyRequest | null = null;
+    render(
+      <GalaxyPlotter ship={SHIP} route={null}
+        onPlot={async (req) => { seen = req; return { ok: true, result: GROUTE }; }}
+        onStart={() => {}} onClear={() => {}} onAnchor={() => {}} />
+    );
+    expect(screen.getByDisplayValue('Sol')).toBeTruthy(); // From ← ship.system
+    expect(screen.getByDisplayValue('96')).toBeTruthy(); // Cargo ← ship.cargoUsed
+    fireEvent.change(screen.getAllByRole('textbox')[1], { target: { value: 'Lave' } });
+    fireEvent.click(screen.getByText('PLOT ROUTE'));
+    expect(await screen.findByText(/replaces any other active travel route/)).toBeTruthy();
+    expect(seen).toMatchObject({
+      from: 'Sol', to: 'Lave', algorithm: 'optimistic', cargo: 96,
+      useSupercharge: true, useInjections: false, refuelEveryScoopable: true,
+      fuelPower: 2.45, fuelMultiplier: 0.012, optimalMass: 1050, baseMass: 316.63,
+      tankSize: 32, internalTankSize: 0.63, maxFuelPerJump: 5, rangeBoost: 0, reserveSize: 0,
+    });
+    expect(screen.getByTestId('gp-plan-wp-1').textContent).toContain('NEUTRON');
+    expect(screen.getByTestId('gp-plan-wp-2').textContent).toContain('REFUEL');
+    expect(screen.getByTestId('gp-plan-wp-2').textContent).toContain('SCOOP');
+    expect(screen.getByTestId('gp-plan-wp-3').textContent).toContain('INJECT');
+    expect(screen.getByText(/13.5 t fuel/)).toBeTruthy();
+  });
+
+  it('renders the active checklist with badges, fuel column, and anchors', () => {
+    let anchored = -1;
+    render(
+      <GalaxyPlotter ship={SHIP} route={GACTIVE}
+        onPlot={async () => ({ ok: false, error: 'x' })} onStart={() => {}} onClear={() => {}} onAnchor={(i) => (anchored = i)} />
+    );
+    expect(screen.getByTestId('gp-wp-1').textContent).toContain('▶');
+    expect(screen.getByTestId('gp-wp-1').textContent).toContain('NEUTRON');
+    expect(screen.getByTestId('gp-copied').textContent).toContain('Jackson Sector NN-A b0');
+    fireEvent.click(within(screen.getByTestId('gp-wp-2')).getByText('Copy'));
+    expect(anchored).toBe(2);
+  });
+});
+
+const CROUTE: ColonisationRoute = {
+  totalJumps: 2, totalDistanceLy: 26.8, incomplete: false,
+  waypoints: [
+    { system: 'Sol', jumps: 0, distance: 0, distanceToGo: 22, bodyCount: 40, scanValue: 605861, mappingValue: 2213988 },
+    { system: 'SPF-LF 1', jumps: 1, distance: 11.8, distanceToGo: 15, bodyCount: 9, scanValue: 5205, mappingValue: 22339 },
+    { system: 'EE Leonis', jumps: 1, distance: 15, distanceToGo: 0, bodyCount: 1, scanValue: 1205, mappingValue: 4571 },
+  ],
+};
+const CACTIVE: ActiveColonisationRoute = {
+  route: CROUTE, currentWaypoint: 1,
+  waypointStatus: ['done', 'next', 'pending'],
+  copiedSystem: 'SPF-LF 1',
+};
+
+describe('ColonisationPlotter', () => {
+  it('prefills From, plots, and renders body/value columns with START enabled', async () => {
+    let seen: PlotColonisationRequest | null = null;
+    render(
+      <ColonisationPlotter ship={SHIP} route={null}
+        onPlot={async (req) => { seen = req; return { ok: true, result: CROUTE }; }}
+        onStart={() => {}} onClear={() => {}} onAnchor={() => {}} />
+    );
+    expect(screen.getByDisplayValue('Sol')).toBeTruthy();
+    fireEvent.change(screen.getAllByRole('textbox')[1], { target: { value: 'EE Leonis' } });
+    fireEvent.click(screen.getByText('PLOT ROUTE'));
+    expect(await screen.findByText(/replaces any other active travel route/)).toBeTruthy();
+    expect(seen).toMatchObject({ from: 'Sol', to: 'EE Leonis' });
+    expect(screen.getByTestId('cp-plan-wp-0').textContent).toContain('40 bodies');
+    expect(screen.getByTestId('cp-plan-wp-1').textContent).toContain('5,205');
+    expect(screen.getByTestId('cp-plan-wp-1').textContent).toContain('22,339');
+    expect(screen.queryByTestId('cp-incomplete')).toBeNull();
+    expect((screen.getByText('START ROUTE') as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('shows the incomplete banner with the reason and disables START', async () => {
+    const partial: ColonisationRoute = {
+      ...CROUTE, incomplete: true, reason: 'Could not generate route, closest found returned',
+    };
+    render(
+      <ColonisationPlotter ship={SHIP} route={null}
+        onPlot={async () => ({ ok: true, result: partial })}
+        onStart={() => {}} onClear={() => {}} onAnchor={() => {}} />
+    );
+    fireEvent.change(screen.getAllByRole('textbox')[1], { target: { value: 'Lave' } });
+    fireEvent.click(screen.getByText('PLOT ROUTE'));
+    expect(await screen.findByTestId('cp-incomplete')).toBeTruthy();
+    expect(screen.getByTestId('cp-incomplete').textContent).toContain('Could not generate route, closest found returned');
+    expect(screen.getByTestId('cp-plan-wp-2')).toBeTruthy(); // partial route still rendered
+    expect((screen.getByText('START ROUTE') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('renders the active checklist with anchors', () => {
+    let anchored = -1;
+    render(
+      <ColonisationPlotter ship={SHIP} route={CACTIVE}
+        onPlot={async () => ({ ok: false, error: 'x' })} onStart={() => {}} onClear={() => {}} onAnchor={(i) => (anchored = i)} />
+    );
+    expect(screen.getByTestId('cp-wp-1').textContent).toContain('▶');
+    expect(screen.getByTestId('cp-copied').textContent).toContain('SPF-LF 1');
+    fireEvent.click(within(screen.getByTestId('cp-wp-2')).getByText('Copy'));
+    expect(anchored).toBe(2);
+  });
+});
+
+describe('CockpitPanel galaxy + colonisation cards', () => {
+  it('shows the active galaxy route summary', () => {
+    render(<CockpitPanel ship={SHIP} route={null} neutron={null} exploration={null} carrier={null} tourist={null} galaxy={GACTIVE} colonisation={null} />);
+    expect(screen.getByTestId('galaxy-card').textContent).toContain('Waypoint 2 of 4');
+    expect(screen.getByTestId('galaxy-card').textContent).toContain('Jackson Sector NN-A b0');
+  });
+
+  it('shows the active colonisation route summary', () => {
+    render(<CockpitPanel ship={SHIP} route={null} neutron={null} exploration={null} carrier={null} tourist={null} galaxy={null} colonisation={CACTIVE} />);
+    expect(screen.getByTestId('colonisation-card').textContent).toContain('Waypoint 2 of 3');
+    expect(screen.getByTestId('colonisation-card').textContent).toContain('SPF-LF 1');
   });
 });
