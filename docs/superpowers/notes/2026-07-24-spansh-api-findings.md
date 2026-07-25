@@ -643,3 +643,193 @@ this endpoint.
 | No aggregate totals in result | **Confirmed** — sum `jumps[].fuel_used`, count `jumps.length - 1`, client-side |
 | Source waypoint at `jumps[0]` | **Confirmed** — `distance: 0`, `fuel_used: 0`, `is_desired_destination: 1` |
 | Pending envelope for this endpoint | **Not captured** (jobs complete in < 4 s) — assumed same as siblings |
+
+## Tourist routes (probed 2026-07-24)
+
+Same method as prior probes: fetched `https://spansh.co.uk/tourist`, confirmed the same Ember
+bundle hash (`elite-dangerous-gui-7c4a80cdff3416e86822ab0c9abf55fd.js`) as every other probe,
+read `controllers/tourist`'s `calculate()` and `services/api`
+(`plotTouristRoute(e){return this.performRequest("/api/tourist/route",e)}`) BEFORE submitting.
+One job submitted, completed on the first poll.
+
+### Endpoint
+
+`POST /api/tourist/route`, form-urlencoded (`jquery.ajax` with `traditional:true`), `202
+Accepted` with the standard `{"job":"<uuid>","status":"queued"}` envelope; poll
+`GET /api/results/{job}`. Same inline submit-error branch as fleet carrier
+(`.fail(...)` parses `responseText` for `{error: "..."}`) — the site alerts
+`"Unable to generate route: " + t.error`.
+
+### Request parameters (read from `controllers/tourist` `calculate()`)
+
+| Field sent | Type | Required? | Example | Notes |
+|---|---|---|---|---|
+| `source` | string (system NAME) | yes | `Sol` | names, not id64s (unlike fleet carrier) |
+| `destination` | repeated key, string name each | yes (>=1) | `destination=Alpha Centauri&destination=Barnard's Star&destination=Sirius` | **SINGULAR key name** `destination`, one per system (jQuery `traditional:true`), even though the controller property is `destinations`. Echoed back in `parameters` as `destinations` (plural). The site's CSV import feature just fills this same list. |
+| `final_destination` | string name | sent always, may be empty | `""` | pins the route's last stop; controller default `null`, which jQuery serializes as an **empty string** — so the site always sends the key. Echoed back as `""` when unset. |
+| `range` | string(float) | yes | `30` | ship jump range, ly |
+| `loop` | `'0'`/`'1'` | yes | `1` | site default `1` — route returns to `source` at the end (source appears again as the final waypoint) |
+
+That's the whole set — no radius/max_results/efficiency/anything else. No silent-ignore trap
+encountered (params read from the bundle first, worked first try).
+
+### Job submitted
+
+`source=Sol, destination=[Alpha Centauri, Barnard's Star, Sirius], final_destination=, range=30,
+loop=1` → 202, job `7D982B70-8779-11F1-B346-9A1EFF2E72B8`, already `state:"completed"` on the
+first poll ~4 s after submit. Fixtures (result saved verbatim, small enough not to truncate):
+- `packages/app/fixtures/spansh/tourist-route-submit.json`
+- `packages/app/fixtures/spansh/tourist-route-result.json`
+
+### Completed result shape
+
+```json
+{
+  "job": "...", "parameters": {"destinations":["..."], "final_destination":"", "loop":"1", "range":"30", "source":"Sol"},
+  "state": "completed", "status": "ok",
+  "result": {
+    "source_system": "Sol",
+    "destination_systems": ["Alpha Centauri", "Barnard's Star", "Sirius"],
+    "range": "30", "job": "...",
+    "system_jumps": [
+      {"distance":0,                "id64":10477373803,     "jumps":0, "system":"Sol", "x":0,"y":0,"z":0},
+      {"distance":4.37712002205788, "id64":1178708478315,   "jumps":1, "system":"Alpha Centauri"},
+      {"distance":9.54420226498789, "id64":121569805492,    "jumps":1, "system":"Sirius"},
+      {"distance":14.4020804703695, "id64":18263140541865,  "jumps":1, "system":"Barnard's Star"},
+      {"distance":5.95466269510709, "id64":"10477373803",   "jumps":1, "system":"Sol"}
+    ]
+  }
+}
+```
+(x/y/z elided above for all but entry 0; every real entry has them.)
+
+- **The ordering IS the product**: submitted order was Alpha Centauri, Barnard's Star, Sirius;
+  the returned `system_jumps` order is Alpha Centauri → **Sirius** → Barnard's Star — a genuine
+  travelling-salesman reordering, proof the params landed.
+- Array is named `system_jumps` like neutron, but there is **NO `total_jumps`** (or any other
+  aggregate) — client derives leg count/totals itself.
+- Per-waypoint fields: `system`, `id64`, `x`/`y`/`z`, `distance` (ly from the PREVIOUS waypoint,
+  0 on the source), `jumps` (jump count for that leg, 0 on the source). No
+  `distance_jumped`/`distance_left`/`neutron_star` — leaner than neutron's waypoint shape.
+- **Source waypoint IS entry 0 with `jumps: 0`** — matches the neutron pattern, NOT the riches
+  quirk (`jumps: 1`). With `loop=1` the source ALSO appears as the final entry (with real
+  `distance`/`jumps` for the return leg), so `system_jumps.length` = destinations + 2 when
+  looping.
+- **id64 typing trap, worse than elsewhere: MIXED IN ONE ARRAY.** Entries 0-3 have `id64` as a
+  plain JSON number (`10477373803`), but the final looped Sol entry has it as a STRING
+  (`"10477373803"`) — the same system, both typings, one response. Treat `id64` as opaque
+  string-or-number everywhere.
+- `parameters` echo renames `destination`→`destinations`; `result` echoes
+  `source`→`source_system`, `destination`→`destination_systems` (fleet-carrier-style renames).
+  `loop` and `final_destination` are NOT echoed inside `result` at all.
+
+### Latency
+
+Sub-second 202; completed by the first poll (~4 s) for this 4-leg toy route. No rate-limit
+headers, same minimal nginx header set as all prior probes.
+
+## Exomastery routes (probed 2026-07-24)
+
+**Headline finding: "Expressway to Exomastery" is NOT the riches endpoint.** Its internal name
+throughout the bundle is **`exobiology`** (`controllers/exobiology`, route `exobiology`, page
+title `"Expressway to Exomastery"`), and it has its **own endpoint**:
+`plotExobiologyRoute(e){return this.performRequest("/api/exobiology/route",e)}`. The word
+"exomastery" appears exactly once in the bundle (the page-title string) — grep for `exobiology`
+when spelunking. The controller DOES extend the same `controllers/base/salesman` base class as
+riches/ammonia/earth/rocky-metal, so the parameter family is near-identical — but it posts to a
+different URL, sends no `body_types`, no `use_mapping_value`, and its `min_value` default is
+**1e7 (10,000,000 credits)**, filtering on bio landmark value rather than scan value.
+
+### Endpoint
+
+`POST /api/exobiology/route`, form-urlencoded, `202` + `{"job","status":"queued"}`, poll
+`GET /api/results/{job}`. Same inline submit-error `.fail` branch as tourist/fleet-carrier.
+
+### Request parameters (read from `controllers/exobiology` `calculate()` + `base/salesman`)
+
+| Field sent | Type | Required? | Default (site) | Notes |
+|---|---|---|---|---|
+| `from` | string (system NAME) | yes | — | echoed back in `parameters` as `source` (riches-style rename) |
+| `to` | string name | no | omitted when unset | only sent if a destination is picked; echoed as `destination` |
+| `range` | string(float) | yes | — | ship jump range, ly |
+| `radius` | string(int) | yes | `25` | ly search corridor, same as riches |
+| `max_results` | string(int) | yes | `100` | waypoint cap |
+| `max_distance` | string(int) | yes | `50000` | ly total-route cap, same as riches |
+| `min_value` | string(int) | yes | `10000000` (**1e7**) | minimum qualifying value per body — verified to filter on `landmark_value` (bio value), NOT `estimated_scan_value`: the fixture body qualifies with `estimated_scan_value: 500` but `landmark_value: 35275300` |
+| `avoid_thargoids` | `'0'`/`'1'` | yes | `1` | echoes back as **number `1`**, not string (same quirk as riches) |
+| `loop` | `'0'`/`'1'` | yes | `1` | with no `to`, route loops back to `from` |
+
+NOT sent, ever: `body_types`, `use_mapping_value` — those are riches-family-only fields.
+
+### Job submitted
+
+`from=Sol, range=30, radius=25, max_results=20, max_distance=10000, min_value=10000000,
+avoid_thargoids=1, loop=1` → 202, job `8EF6FDB0-8779-11F1-AB7E-844F6B81D891`, `completed` on the
+first poll ~5 s after submit. Result: 3 waypoints (Sol → Saktsak → Sol loop), 1 qualifying body.
+Sparse — but real and shape-complete (the one body carries a 2-entry `landmarks` array), and per
+the riches probe's lesson this is a data-density issue near Sol at radius 25, not a param
+problem. Fixtures (verbatim, untruncated):
+- `packages/app/fixtures/spansh/exomastery-route-submit.json`
+- `packages/app/fixtures/spansh/exomastery-route-result.json`
+
+### Completed result shape
+
+Envelope identical to riches: `result` is a flat ARRAY of waypoints (no container object, no
+aggregate totals of any kind — sum `bodies[].landmark_value` client-side for a route total).
+
+```json
+{
+  "bodies": [
+    {
+      "name": "Saktsak AB 2 f", "type": "Planet", "subtype": "Rocky body",
+      "distance_to_arrival": 2038.930008,
+      "estimated_scan_value": 500, "estimated_mapping_value": 2221,
+      "landmark_value": 35275300,
+      "landmarks": [
+        {"type": "Tussock",  "subtype": "Tussock Stigmasis", "count": 155, "value": 19010800},
+        {"type": "Recepta",  "subtype": "Recepta Umbrux",    "count": 192, "value": 12934900}
+      ],
+      "id": 936752993577994603, "id64": "936752993577994603"
+    }
+  ],
+  "id64": "4271084931435", "jumps": 1, "name": "Saktsak", "x": 1.40625, "y": 16.6875, "z": -12.03125
+}
+```
+
+Differences vs. the riches body shape:
+- **`landmarks` array is new** (not present on riches bodies): one entry per biological signal,
+  `type` = genus ("Tussock", "Recepta"), `subtype` = species ("Tussock Stigmasis"), `count` =
+  number of known signal locations on the body, `value` = credits for that species.
+- **`landmark_value` is NOT the sum of `landmarks[].value`** in the fixture: 19,010,800 +
+  12,934,900 = 31,945,700, but `landmark_value` is 35,275,300 (+3,329,600). Do not derive one
+  from the other client-side; treat `landmark_value` as the authoritative per-body total
+  (riches showed the same field as a flat bonus; here it's the primary value figure).
+- **No `is_terraformable` field** on exobiology bodies (riches bodies have it). Same
+  `estimated_scan_value`/`estimated_mapping_value`/`distance_to_arrival` fields otherwise —
+  scan/mapping values are near-worthless here by design; the money is in `landmark_value`.
+- `id` plain number (precision trap), `id64` string — same as riches; read `id64` only.
+
+Waypoint-level quirks, all matching riches exactly: source waypoint present with **`jumps: 1`**
+(the riches quirk, NOT tourist/neutron's `jumps: 0` — normalize to 0 client-side), `jumps` =
+per-leg hop count from the previous waypoint, `bodies: []` on non-qualifying waypoints, system
+`id64` as string, `loop=1` repeats the source system as the final waypoint.
+
+### Latency
+
+Sub-second 202; completed by first poll (~5 s). No rate-limit headers.
+
+### Summary: findings verdict (tourist + exomastery)
+
+| Item | Verdict |
+|---|---|
+| Tourist endpoint `POST /api/tourist/route`, names not id64s | **Confirmed** from bundle + live (optimized reorder proves params landed) |
+| Tourist repeated key is SINGULAR `destination` | **Confirmed** from bundle `t.destination=this.destinations` |
+| Tourist result: `system_jumps` but NO aggregates, source at entry 0 with `jumps: 0`, loop repeats source at end | **Confirmed** live |
+| Tourist mixed number/string `id64` within one array | **New trap** — final looped waypoint's id64 is a string, others numbers |
+| Exomastery = `/api/exobiology/route` (own endpoint, internal name `exobiology`) | **Confirmed** — NOT `/api/riches/route`, unlike ammonia/earth/rocky-metal |
+| Exomastery params = salesman family minus `body_types`/`use_mapping_value`, `min_value` default 1e7 | **Confirmed** from bundle |
+| `min_value` filters on `landmark_value`, not scan value | **Confirmed** live (qualifying body has scan value 500) |
+| `landmarks[]` genus/species/count/value array | **New shape** — exobiology-only |
+| `landmark_value` ≠ sum of `landmarks[].value` | **New quirk** — 35,275,300 vs 31,945,700 in fixture; don't derive |
+| Source waypoint `jumps: 1` (riches quirk) on exobiology | **Confirmed** — normalize to 0 |
+| Pending envelope for these two endpoints | **Not captured** (both jobs completed by first poll, ~4-5 s) — assumed same as siblings |

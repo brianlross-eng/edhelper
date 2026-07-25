@@ -160,6 +160,9 @@ describe('plotExploration', () => {
     const firstWithBodies = route.waypoints.find((w) => w.bodies.length > 0)!;
     expect(firstWithBodies.bodies[0].subtype).toBeTruthy();
     expect(firstWithBodies.bodies[0].scanValue).toBeGreaterThan(0);
+    // Regression pin: non-exobiology routes stay landmark-free (no keys at all).
+    expect(route.totalLandmarkValue).toBeUndefined();
+    expect('landmarkValue' in firstWithBodies.bodies[0]).toBe(false);
     expect(route.waypoints[0].jumps).toBe(0); // source row normalized
     const rawFixture = fixture('riches-route-result.json').result;
     const rawJumpSum = rawFixture.reduce((s: number, w: any) => s + (w.jumps ?? 0), 0);
@@ -262,5 +265,96 @@ describe('plotFleetCarrier', () => {
       client.plotFleetCarrier({ from: 'Nowhereia', to: 'Colonia', capacity: 25000, mass: 25000, capacityUsed: 0 })
     ).rejects.toThrow('Unknown system: Nowhereia');
     expect(calls.some((c) => c.url.includes('/fleetcarrier/route'))).toBe(false);
+  });
+});
+
+describe('plotTourist', () => {
+  it('submits verified params and maps the optimized order', async () => {
+    const { fn, calls } = fakeFetch({
+      '/tourist/route': () => ({
+        status: 202,
+        body: fixture('tourist-route-submit.json').response.body,
+      }),
+      '/results/': () => ({ body: fixture('tourist-route-result.json') }),
+    });
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    const route = await client.plotTourist({
+      source: 'Sol',
+      destinations: ['Alpha Centauri', "Barnard's Star", 'Sirius'],
+      range: 30,
+      loop: true,
+    });
+    const submit = calls.find((c) => c.url.includes('/tourist/route'))!;
+    const form = new URLSearchParams(String(submit.init.body));
+    expect(form.get('source')).toBe('Sol');
+    // SINGULAR repeated key — the live API expects `destination`, not `destinations`.
+    expect(form.getAll('destination')).toEqual(['Alpha Centauri', "Barnard's Star", 'Sirius']);
+    expect(form.get('final_destination')).toBe('');
+    expect(form.get('range')).toBe('30');
+    expect(form.get('loop')).toBe('1');
+    // Spansh optimized the visiting order (submitted A.Centauri/Barnard's/Sirius):
+    expect(route.waypoints.map((w) => w.system)).toEqual([
+      'Sol', 'Alpha Centauri', 'Sirius', "Barnard's Star", 'Sol',
+    ]);
+    expect(route.waypoints[0].jumps).toBe(0); // source row arrives with jumps: 0 already
+    expect(route.totalJumps).toBe(4);
+    expect(route.totalDistanceLy).toBeCloseTo(34.28, 1); // 0 + 4.377 + 9.544 + 14.402 + 5.955
+  });
+
+  it('surfaces the inline submit error and never polls', async () => {
+    const { fn, calls } = fakeFetch({
+      '/tourist/route': () => ({ status: 202, body: { status: 'error', error: 'no such system' } }),
+    });
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    await expect(
+      client.plotTourist({ source: 'X', destinations: ['Y'], range: 30, loop: false })
+    ).rejects.toThrow('no such system');
+    expect(calls.some((c) => c.url.includes('/results/'))).toBe(false);
+  });
+
+  it('rejects an empty destination list before fetching', async () => {
+    const { fn, calls } = fakeFetch({});
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    await expect(
+      client.plotTourist({ source: 'Sol', destinations: [], range: 30, loop: true })
+    ).rejects.toThrow('At least one destination is required');
+    expect(calls.length).toBe(0);
+  });
+});
+
+describe('plotExomastery', () => {
+  it('submits verified params and maps landmark data', async () => {
+    const { fn, calls } = fakeFetch({
+      '/exobiology/route': () => ({
+        status: 202,
+        body: fixture('exomastery-route-submit.json').response.body,
+      }),
+      '/results/': () => ({ body: fixture('exomastery-route-result.json') }),
+    });
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    const route = await client.plotExomastery({
+      from: 'Sol', jumpRange: 30, radius: 25, maxResults: 100,
+      maxDistance: 50000, minValue: 10000000, loop: true, avoidThargoids: true,
+    });
+    const submit = calls.find((c) => c.url.includes('/exobiology/route'))!;
+    const form = new URLSearchParams(String(submit.init.body));
+    expect(form.get('from')).toBe('Sol');
+    expect(form.get('range')).toBe('30');
+    expect(form.get('radius')).toBe('25');
+    expect(form.get('max_results')).toBe('100');
+    expect(form.get('max_distance')).toBe('50000');
+    expect(form.get('min_value')).toBe('10000000');
+    expect(form.get('avoid_thargoids')).toBe('1');
+    expect(form.get('loop')).toBe('1');
+    expect(form.has('body_types')).toBe(false); // no body-type filter on this endpoint
+    expect(route.waypoints[0].jumps).toBe(0); // source-row normalization (raw fixture has 1)
+    const withBio = route.waypoints.flatMap((w) => w.bodies).find((b) => (b.landmarkValue ?? 0) > 0)!;
+    expect(withBio.landmarkValue).toBe(35275300);
+    expect(withBio.landmarks![0]).toEqual({
+      type: 'Tussock', subtype: 'Tussock Stigmasis', count: 155, value: 19010800,
+    });
+    // landmark_value ≠ sum(landmarks): 19010800 + 12934900 = 31945700, not 35275300 —
+    // both are displayed, neither is derived from the other.
+    expect(route.totalLandmarkValue).toBe(35275300); // sum of landmark_value across fixture bodies
   });
 });

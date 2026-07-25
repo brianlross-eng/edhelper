@@ -38,4 +38,11 @@ contextBridge.exposeInMainWorld('edhelper', {
   getCarrierRoute: () => ipcRenderer.invoke('carrier:get'),
   anchorCarrierRoute: (index: number) => ipcRenderer.invoke('carrier:anchor', index),
   onCarrierUpdated: subscribe('carrier:updated'),
+  plotTourist: (req: unknown) => ipcRenderer.invoke('tourist:plot', req),
+  startTouristRoute: (route: unknown) => ipcRenderer.invoke('tourist:start', route),
+  clearTouristRoute: () => ipcRenderer.invoke('tourist:clear'),
+  getTouristRoute: () => ipcRenderer.invoke('tourist:get'),
+  anchorTouristRoute: (index: number) => ipcRenderer.invoke('tourist:anchor', index),
+  onTouristUpdated: subscribe('tourist:updated'),
+  plotExomastery: (req: unknown) => ipcRenderer.invoke('exomastery:plot', req),
 });

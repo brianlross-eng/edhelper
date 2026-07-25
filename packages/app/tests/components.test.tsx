@@ -5,6 +5,8 @@ import type { ShipState } from '@edhelper/engine';
 import type {
   ActiveRoute, ActiveNeutronRoute, ActiveExplorationRoute, ActiveFleetCarrierRoute,
   FleetCarrierRoute, PlotFleetCarrierRequest,
+  ExplorationRoute, PlotExomasteryRequest,
+  TouristRoute, ActiveTouristRoute, PlotTouristRequest,
 } from '../src/shared/ipc-types';
 import { CockpitPanel } from '../src/renderer/src/components/CockpitPanel';
 import { RouteChecklist } from '../src/renderer/src/components/RouteChecklist';
@@ -12,6 +14,7 @@ import { TradePlanner } from '../src/renderer/src/components/TradePlanner';
 import { NeutronPlotter } from '../src/renderer/src/components/NeutronPlotter';
 import { ExplorationRouter } from '../src/renderer/src/components/ExplorationRouter';
 import { FleetCarrierRouter } from '../src/renderer/src/components/FleetCarrierRouter';
+import { TouristPlanner } from '../src/renderer/src/components/TouristPlanner';
 import { DataHealthFooter } from '../src/renderer/src/components/DataHealthFooter';
 
 afterEach(cleanup);
@@ -37,7 +40,7 @@ const ROUTE: ActiveRoute = {
 
 describe('CockpitPanel', () => {
   it('shows commander, location, and cargo from ship state', () => {
-    render(<CockpitPanel ship={SHIP} route={null} neutron={null} exploration={null} carrier={null} />);
+    render(<CockpitPanel ship={SHIP} route={null} neutron={null} exploration={null} carrier={null} tourist={null} />);
     expect(screen.getByText('CMDR Bross')).toBeTruthy();
     expect(screen.getByTestId('location').textContent).toContain('Sol · Abraham Lincoln');
     expect(screen.getByTestId('cargo').textContent).toContain('96 / 192 t');
@@ -45,20 +48,20 @@ describe('CockpitPanel', () => {
   });
 
   it('shows the next hop of the active route', () => {
-    render(<CockpitPanel ship={SHIP} route={ROUTE} neutron={null} exploration={null} carrier={null} />);
+    render(<CockpitPanel ship={SHIP} route={ROUTE} neutron={null} exploration={null} carrier={null} tourist={null} />);
     expect(screen.getByText(/Hop 2 of 2/).textContent).toBeTruthy();
     expect(screen.getByText(/Wolf \/ Gamma/)).toBeTruthy();
   });
 
   it('shows completion with actual vs expected profit', () => {
     const done: ActiveRoute = { ...ROUTE, currentHop: 2, hopStatus: ['done', 'done'], actualProfit: 149_000 };
-    render(<CockpitPanel ship={SHIP} route={done} neutron={null} exploration={null} carrier={null} />);
+    render(<CockpitPanel ship={SHIP} route={done} neutron={null} exploration={null} carrier={null} tourist={null} />);
     expect(screen.getByTestId('route-complete').textContent).toContain('149,000');
     expect(screen.getByTestId('route-complete').textContent).toContain('150,000');
   });
 
   it('degrades gracefully with no data', () => {
-    render(<CockpitPanel ship={null} route={null} neutron={null} exploration={null} carrier={null} />);
+    render(<CockpitPanel ship={null} route={null} neutron={null} exploration={null} carrier={null} tourist={null} />);
     expect(screen.getByText('No commander data')).toBeTruthy();
   });
 });
@@ -211,13 +214,13 @@ describe('NeutronPlotter', () => {
     );
     fireEvent.change(screen.getAllByRole('textbox')[1], { target: { value: 'Colonia' } });
     fireEvent.click(screen.getByText('PLOT ROUTE'));
-    expect(await screen.findByText(/replaces any active exploration or fleet carrier route/)).toBeTruthy();
+    expect(await screen.findByText(/replaces any other active travel route/)).toBeTruthy();
   });
 });
 
 describe('CockpitPanel neutron card', () => {
   it('shows the active neutron route summary', () => {
-    render(<CockpitPanel ship={SHIP} route={null} neutron={NROUTE} exploration={null} carrier={null} />);
+    render(<CockpitPanel ship={SHIP} route={null} neutron={NROUTE} exploration={null} carrier={null} tourist={null} />);
     expect(screen.getByTestId('neutron-card').textContent).toContain('Waypoint 2 of 3');
     expect(screen.getByTestId('neutron-card').textContent).toContain('Jackson Sector NN-A b0');
     expect(screen.getByTestId('neutron-card').textContent).toContain('clipboard');
@@ -247,7 +250,8 @@ describe('ExplorationRouter', () => {
     let anchored = -1;
     const { rerender } = render(
       <ExplorationRouter ship={{ ...SHIP, system: 'Sol', maxJumpRange: 28.4 }} route={null}
-        onPlot={async () => ({ ok: false, error: 'x' })} onStart={() => {}} onClear={() => {}} onAnchor={(i) => (anchored = i)} />
+        onPlot={async () => ({ ok: false, error: 'x' })} onPlotExo={async () => ({ ok: false, error: 'x' })}
+        onStart={() => {}} onClear={() => {}} onAnchor={(i) => (anchored = i)} />
     );
     expect(screen.getByDisplayValue('Sol')).toBeTruthy();
     expect(screen.getByDisplayValue('28.4')).toBeTruthy();
@@ -255,7 +259,8 @@ describe('ExplorationRouter', () => {
     expect(screen.getByText('Ammonia Worlds')).toBeTruthy();
     rerender(
       <ExplorationRouter ship={SHIP} route={XACTIVE}
-        onPlot={async () => ({ ok: false, error: 'x' })} onStart={() => {}} onClear={() => {}} onAnchor={(i) => (anchored = i)} />
+        onPlot={async () => ({ ok: false, error: 'x' })} onPlotExo={async () => ({ ok: false, error: 'x' })}
+        onStart={() => {}} onClear={() => {}} onAnchor={(i) => (anchored = i)} />
     );
     expect(screen.getByTestId('xwp-1').textContent).toContain('▶');
     expect(screen.getByTestId('xwp-1').textContent).toContain('Earth-like world');
@@ -267,18 +272,53 @@ describe('ExplorationRouter', () => {
   it('notes travel-route exclusivity next to START', async () => {
     render(
       <ExplorationRouter ship={SHIP} route={null}
-        onPlot={async () => ({ ok: true, result: XACTIVE.route })} onStart={() => {}} onClear={() => {}} onAnchor={() => {}} />
+        onPlot={async () => ({ ok: true, result: XACTIVE.route })} onPlotExo={async () => ({ ok: false, error: 'x' })}
+        onStart={() => {}} onClear={() => {}} onAnchor={() => {}} />
     );
     fireEvent.change(screen.getAllByRole('textbox')[0], { target: { value: 'Sol' } });
     fireEvent.change(screen.getAllByRole('textbox')[2], { target: { value: '28' } });
     fireEvent.click(screen.getByText('PLOT ROUTE'));
-    expect(await screen.findByText(/replaces any active neutron or fleet carrier route/)).toBeTruthy();
+    expect(await screen.findByText(/replaces any other active travel route/)).toBeTruthy();
+  });
+
+  it('exobiology chip sets defaults, plots via onPlotExo, and renders landmarks', async () => {
+    const EXOROUTE: ExplorationRoute = {
+      totalJumps: 6, totalScanValue: 500, totalMappingValue: 1200, totalBodies: 1,
+      totalLandmarkValue: 35_275_300,
+      waypoints: [
+        { system: 'Sol', jumps: 0, bodies: [] },
+        { system: 'Wolf 359', jumps: 6, bodies: [
+          {
+            name: 'Wolf 359 A 1', subtype: 'Rocky body', distanceToArrival: 30,
+            scanValue: 500, mappingValue: 1200, terraformable: false,
+            landmarkValue: 35_275_300,
+            landmarks: [{ type: 'Biological', subtype: 'Tussock Stigmasis', count: 155, value: 19_010_800 }],
+          },
+        ]},
+      ],
+    };
+    let seen: PlotExomasteryRequest | null = null;
+    render(
+      <ExplorationRouter ship={SHIP} route={null}
+        onPlot={async () => ({ ok: false, error: 'x' })}
+        onPlotExo={async (req) => { seen = req; return { ok: true, result: EXOROUTE }; }}
+        onStart={() => {}} onClear={() => {}} onAnchor={() => {}} />
+    );
+    fireEvent.click(screen.getByText('Exobiology'));
+    expect(screen.getByDisplayValue('10000000')).toBeTruthy();
+    expect((screen.getAllByRole('checkbox')[1] as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(screen.getByText('PLOT ROUTE'));
+    await screen.findByTestId('xwp-1');
+    expect(seen).toMatchObject({ minValue: 10_000_000 });
+    expect((seen as unknown as { bodyTypes?: unknown }).bodyTypes).toBeUndefined();
+    expect(screen.getByTestId('xwp-1').textContent).toContain('bio 35,275,300 cr');
+    expect(screen.getByTestId('xwp-1').textContent).toContain('Tussock Stigmasis ×155 · 19,010,800 cr');
   });
 });
 
 describe('CockpitPanel exploration card', () => {
   it('shows the active exploration route summary', () => {
-    render(<CockpitPanel ship={SHIP} route={null} neutron={null} exploration={XACTIVE} carrier={null} />);
+    render(<CockpitPanel ship={SHIP} route={null} neutron={null} exploration={XACTIVE} carrier={null} tourist={null} />);
     expect(screen.getByTestId('exploration-card').textContent).toContain('Waypoint 2 of 3');
     expect(screen.getByTestId('exploration-card').textContent).toContain('Alpha Centauri');
   });
@@ -312,7 +352,7 @@ describe('FleetCarrierRouter', () => {
     expect(await screen.findByText(/260 t tritium/)).toBeTruthy();
     expect(screen.getByTestId('fc-plan-wp-0').textContent).toContain('RESTOCK 260 t');
     expect(screen.getByTestId('fc-plan-wp-1').textContent).toContain('PRISTINE');
-    expect(screen.getByText(/replaces any active neutron or exploration route/)).toBeTruthy();
+    expect(screen.getByText(/replaces any other active travel route/)).toBeTruthy();
   });
 
   it('switching carrier type clears a stale plotted route', async () => {
@@ -355,8 +395,70 @@ describe('FleetCarrierRouter', () => {
 
 describe('CockpitPanel carrier card', () => {
   it('shows the active carrier route summary', () => {
-    render(<CockpitPanel ship={SHIP} route={null} neutron={null} exploration={null} carrier={FCACTIVE} />);
+    render(<CockpitPanel ship={SHIP} route={null} neutron={null} exploration={null} carrier={FCACTIVE} tourist={null} />);
     expect(screen.getByTestId('carrier-card').textContent).toContain('Waypoint 2 of 3');
     expect(screen.getByTestId('carrier-card').textContent).toContain('Mid');
+  });
+});
+
+const TROUTE: TouristRoute = {
+  totalJumps: 4, totalDistanceLy: 34.3,
+  waypoints: [
+    { system: 'Sol', jumps: 0, distance: 0 },
+    { system: 'Alpha Centauri', jumps: 1, distance: 4.4 },
+    { system: 'Sirius', jumps: 1, distance: 9.5 },
+    { system: "Barnard's Star", jumps: 1, distance: 14.4 },
+    { system: 'Sol', jumps: 1, distance: 6.0 },
+  ],
+};
+const TACTIVE: ActiveTouristRoute = {
+  route: TROUTE, currentWaypoint: 1,
+  waypointStatus: ['done', 'next', 'pending', 'pending', 'pending'],
+  copiedSystem: 'Alpha Centauri',
+};
+
+describe('TouristPlanner', () => {
+  it('prefills from the ship, plots one destination per line, and notes exclusivity', async () => {
+    let seen: PlotTouristRequest | null = null;
+    render(
+      <TouristPlanner ship={SHIP} route={null}
+        onPlot={async (req) => { seen = req; return { ok: true, result: TROUTE }; }}
+        onStart={() => {}} onClear={() => {}} onAnchor={() => {}} />
+    );
+    expect(screen.getByDisplayValue('Sol')).toBeTruthy();
+    expect(screen.getByDisplayValue('28.4')).toBeTruthy();
+    fireEvent.change(screen.getAllByRole('textbox')[2], {
+      target: { value: "Alpha Centauri\nBarnard's Star\nSirius" },
+    });
+    fireEvent.click(screen.getByText('PLOT ROUTE'));
+    expect(await screen.findByText(/replaces any other active travel route/)).toBeTruthy();
+    expect(seen).toMatchObject({
+      source: 'Sol',
+      destinations: ['Alpha Centauri', "Barnard's Star", 'Sirius'],
+      loop: true,
+    });
+    // Plan view shows the optimized visiting order, not the input order.
+    expect(screen.getByTestId('tp-wp-2').textContent).toContain('Sirius');
+    expect(screen.getByTestId('tp-wp-3').textContent).toContain("Barnard's Star");
+  });
+
+  it('renders the active checklist with anchors', () => {
+    let anchored = -1;
+    render(
+      <TouristPlanner ship={SHIP} route={TACTIVE}
+        onPlot={async () => ({ ok: false, error: 'x' })} onStart={() => {}} onClear={() => {}} onAnchor={(i) => (anchored = i)} />
+    );
+    expect(screen.getByTestId('tp-wp-1').textContent).toContain('▶');
+    expect(screen.getByTestId('tp-copied').textContent).toContain('Alpha Centauri');
+    fireEvent.click(within(screen.getByTestId('tp-wp-2')).getByText('Copy'));
+    expect(anchored).toBe(2);
+  });
+});
+
+describe('CockpitPanel tourist card', () => {
+  it('shows the active tourist route summary', () => {
+    render(<CockpitPanel ship={SHIP} route={null} neutron={null} exploration={null} carrier={null} tourist={TACTIVE} />);
+    expect(screen.getByTestId('tourist-card').textContent).toContain('Waypoint 2 of 5');
+    expect(screen.getByTestId('tourist-card').textContent).toContain('Alpha Centauri');
   });
 });

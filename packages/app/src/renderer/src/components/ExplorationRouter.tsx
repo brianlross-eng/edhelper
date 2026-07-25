@@ -2,25 +2,28 @@ import { useEffect, useState } from 'react';
 import type { ShipState } from '@edhelper/engine';
 import type {
   ActiveExplorationRoute, ExplorationRoute, PlotExplorationRequest, PlotExplorationResponse,
+  PlotExomasteryRequest,
 } from '../../../shared/ipc-types';
 
 export interface ExplorationRouterProps {
   ship: ShipState | null;
   route: ActiveExplorationRoute | null;
   onPlot: (req: PlotExplorationRequest) => Promise<PlotExplorationResponse>;
+  onPlotExo: (req: PlotExomasteryRequest) => Promise<PlotExplorationResponse>;
   onStart: (route: ExplorationRoute) => void;
   onClear: () => void;
   onAnchor: (index: number) => void;
 }
 
-const MODES: Array<{ label: string; bodyTypes: string[]; minValue: number }> = [
-  { label: 'Road to Riches', bodyTypes: [], minValue: 100000 },
-  { label: 'Ammonia Worlds', bodyTypes: ['Ammonia world'], minValue: 1 },
-  { label: 'Earth-likes', bodyTypes: ['Earth-like world'], minValue: 1 },
-  { label: 'Rocky/Metal', bodyTypes: ['Rocky body', 'High metal content world'], minValue: 1 },
+const MODES: Array<{ label: string; bodyTypes: string[]; minValue: number; editableMin: boolean; exo?: boolean }> = [
+  { label: 'Road to Riches', bodyTypes: [], minValue: 100000, editableMin: true },
+  { label: 'Ammonia Worlds', bodyTypes: ['Ammonia world'], minValue: 1, editableMin: false },
+  { label: 'Earth-likes', bodyTypes: ['Earth-like world'], minValue: 1, editableMin: false },
+  { label: 'Rocky/Metal', bodyTypes: ['Rocky body', 'High metal content world'], minValue: 1, editableMin: false },
+  { label: 'Exobiology', bodyTypes: [], minValue: 10000000, editableMin: true, exo: true },
 ];
 
-export function ExplorationRouter({ ship, route, onPlot, onStart, onClear, onAnchor }: ExplorationRouterProps) {
+export function ExplorationRouter({ ship, route, onPlot, onPlotExo, onStart, onClear, onAnchor }: ExplorationRouterProps) {
   const [mode, setMode] = useState(0);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
@@ -45,29 +48,28 @@ export function ExplorationRouter({ ship, route, onPlot, onStart, onClear, onAnc
     setError(null);
     setResult(null);
     const m = MODES[mode];
-    const req: PlotExplorationRequest = {
+    const base: PlotExomasteryRequest = {
       from: from.trim(),
       to: to.trim() || undefined,
       jumpRange: Number(range) || 0,
       radius: Number(radius) || 25,
       maxResults: Number(maxResults) || 50,
       maxDistance: 50000,
-      minValue: mode === 0 ? Number(minValue) || 100000 : m.minValue,
-      bodyTypes: m.bodyTypes,
+      minValue: m.editableMin ? Number(minValue) || m.minValue : m.minValue,
       loop,
       avoidThargoids,
     };
-    if (!req.from) {
+    if (!base.from) {
       setError('Enter a start system.');
       setBusy(false);
       return;
     }
-    if (req.jumpRange <= 0) {
+    if (base.jumpRange <= 0) {
       setError('Jump range must be positive.');
       setBusy(false);
       return;
     }
-    const res = await onPlot(req);
+    const res = m.exo ? await onPlotExo(base) : await onPlot({ ...base, bodyTypes: m.bodyTypes });
     if (res.ok) setResult(res.result);
     else setError(res.error);
     setBusy(false);
@@ -93,10 +95,18 @@ export function ExplorationRouter({ ship, route, onPlot, onStart, onClear, onAnc
           )}
         </div>
         {wp.bodies.map((b) => (
-          <div key={b.name} className="xbody muted">
-            {b.name} — {b.subtype}
-            {b.terraformable ? ' (terraformable)' : ''} · {b.distanceToArrival.toFixed(0)} ls ·
-            scan {b.scanValue.toLocaleString()} cr · map {b.mappingValue.toLocaleString()} cr
+          <div key={b.name}>
+            <div className="xbody muted">
+              {b.name} — {b.subtype}
+              {b.terraformable ? ' (terraformable)' : ''} · {b.distanceToArrival.toFixed(0)} ls ·
+              scan {b.scanValue.toLocaleString()} cr · map {b.mappingValue.toLocaleString()} cr
+              {b.landmarkValue !== undefined ? <> · bio {b.landmarkValue.toLocaleString()} cr</> : null}
+            </div>
+            {(b.landmarks ?? []).map((l) => (
+              <div key={`${b.name}-${l.subtype}`} className="xbody muted" style={{ paddingLeft: 18 }}>
+                {l.subtype} ×{l.count} · {l.value.toLocaleString()} cr
+              </div>
+            ))}
           </div>
         ))}
       </div>
@@ -121,6 +131,7 @@ export function ExplorationRouter({ ship, route, onPlot, onStart, onClear, onAnc
           <span>
             {route.route.totalBodies} bodies · scan {route.route.totalScanValue.toLocaleString()} cr · map{' '}
             {route.route.totalMappingValue.toLocaleString()} cr
+            {route.route.totalLandmarkValue !== undefined ? <> · bio {route.route.totalLandmarkValue.toLocaleString()} cr</> : null}
           </span>
           <button className="btn secondary" onClick={onClear}>Clear route</button>
         </div>
@@ -132,7 +143,7 @@ export function ExplorationRouter({ ship, route, onPlot, onStart, onClear, onAnc
     <div>
       <div className="checks" style={{ marginBottom: 12 }}>
         {MODES.map((m, i) => (
-          <button key={m.label} className={`tool-tab ${mode === i ? 'active' : ''}`} onClick={() => { setMode(i); setResult(null); setError(null); }}>
+          <button key={m.label} className={`tool-tab ${mode === i ? 'active' : ''}`} onClick={() => { setMode(i); setMinValue(String(MODES[i].minValue)); setAvoidThargoids(Boolean(MODES[i].exo)); setResult(null); setError(null); }}>
             {m.label}
           </button>
         ))}
@@ -143,7 +154,7 @@ export function ExplorationRouter({ ship, route, onPlot, onStart, onClear, onAnc
         <div className="field"><label>Jump range (ly)</label><input value={range} onChange={(e) => setRange(e.target.value)} /></div>
         <div className="field"><label>Search radius (ly)</label><input value={radius} onChange={(e) => setRadius(e.target.value)} /></div>
         <div className="field"><label>Max systems</label><input value={maxResults} onChange={(e) => setMaxResults(e.target.value)} /></div>
-        {mode === 0 && (
+        {MODES[mode].editableMin && (
           <div className="field"><label>Min body value (cr)</label><input value={minValue} onChange={(e) => setMinValue(e.target.value)} /></div>
         )}
       </div>
@@ -157,10 +168,11 @@ export function ExplorationRouter({ ship, route, onPlot, onStart, onClear, onAnc
         <div>
           <div className="muted" style={{ margin: '8px 0' }}>
             {result.waypoints.length} systems · {result.totalBodies} bodies · scan {result.totalScanValue.toLocaleString()} cr · map {result.totalMappingValue.toLocaleString()} cr
+            {result.totalLandmarkValue !== undefined ? <> · bio {result.totalLandmarkValue.toLocaleString()} cr</> : null}
           </div>
           {result.waypoints.map((wp, i) => waypointRow(wp, i, '○', '', false))}
           <div className="route-summary">
-            <span className="muted">Starting replaces any active neutron or fleet carrier route.</span>
+            <span className="muted">Starting replaces any other active travel route.</span>
             <button className="btn" onClick={() => onStart(result)}>START ROUTE</button>
           </div>
         </div>

@@ -1,7 +1,7 @@
 import type { ShipState } from '@edhelper/engine';
-import type { ActiveRoute, ActiveNeutronRoute, ActiveExplorationRoute, ActiveFleetCarrierRoute } from '../../../shared/ipc-types';
+import type { ActiveRoute, ActiveNeutronRoute, ActiveExplorationRoute, ActiveFleetCarrierRoute, ActiveTouristRoute } from '../../../shared/ipc-types';
 
-export function CockpitPanel({ ship, route, neutron, exploration, carrier }: { ship: ShipState | null; route: ActiveRoute | null; neutron: ActiveNeutronRoute | null; exploration: ActiveExplorationRoute | null; carrier: ActiveFleetCarrierRoute | null }) {
+export function CockpitPanel({ ship, route, neutron, exploration, carrier, tourist }: { ship: ShipState | null; route: ActiveRoute | null; neutron: ActiveNeutronRoute | null; exploration: ActiveExplorationRoute | null; carrier: ActiveFleetCarrierRoute | null; tourist: ActiveTouristRoute | null }) {
   const cargoPct = ship?.cargoCapacity ? Math.min(100, ((ship.cargoUsed ?? 0) / ship.cargoCapacity) * 100) : 0;
   const nextHop = route && route.currentHop < route.route.hops.length ? route.route.hops[route.currentHop] : null;
   return (
@@ -84,6 +84,21 @@ export function CockpitPanel({ ship, route, neutron, exploration, carrier }: { s
             </>
           ) : (
             <div>Route complete · {carrier.route.totalJumps} jumps</div>
+          )}
+        </div>
+      )}
+
+      {tourist && (
+        <div className="route-box" data-testid="tourist-card">
+          <div className="label" style={{ marginTop: 0 }}>TOURIST</div>
+          {tourist.currentWaypoint < tourist.route.waypoints.length ? (
+            <>
+              <div className="muted">Waypoint {tourist.currentWaypoint + 1} of {tourist.route.waypoints.length}</div>
+              <div className="next-hop">▶ {tourist.route.waypoints[tourist.currentWaypoint].system}</div>
+              <div className="muted">on clipboard — paste in galaxy map</div>
+            </>
+          ) : (
+            <div>Route complete · {tourist.route.totalJumps} jumps</div>
           )}
         </div>
       )}

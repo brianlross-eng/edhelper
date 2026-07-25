@@ -1,0 +1,22 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://spansh.co.uk/api/exobiology/route",
+    "encoding": "application/x-www-form-urlencoded",
+    "form": {
+      "from": "Sol",
+      "range": "30",
+      "radius": "25",
+      "max_results": "20",
+      "max_distance": "10000",
+      "min_value": "10000000",
+      "avoid_thargoids": "1",
+      "loop": "1"
+    },
+    "notes": "Expressway to Exomastery's internal name is 'exobiology' -- its OWN endpoint /api/exobiology/route, NOT /api/riches/route. Params mirror the riches family (from/to/range/radius/max_results/max_distance/min_value/avoid_thargoids/loop) but there is no body_types and no use_mapping_value. Site defaults: radius=25, max_results=100, max_distance=50000, min_value=10000000 (1e7, filters on bio landmark_value not scan value), avoid_thargoids=1, loop=1. 'to' is optional (omitted here); echo renames from->source, to->destination."
+  },
+  "response": {
+    "status": 202,
+    "body": {"job": "8EF6FDB0-8779-11F1-AB7E-844F6B81D891", "status": "queued"}
+  }
+}

@@ -162,7 +162,7 @@ export function FleetCarrierRouter({ ship, route, onPlot, onStart, onClear, onAn
             </div>
           ))}
           <div className="route-summary">
-            <span className="muted">Starting replaces any active neutron or exploration route.</span>
+            <span className="muted">Starting replaces any other active travel route.</span>
             <button className="btn" onClick={() => onStart(result)}>
               START ROUTE
             </button>
