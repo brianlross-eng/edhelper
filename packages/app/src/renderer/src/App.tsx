@@ -9,6 +9,7 @@ import { ExplorationRouter } from './components/ExplorationRouter';
 import { FleetCarrierRouter } from './components/FleetCarrierRouter';
 import { TouristPlanner } from './components/TouristPlanner';
 import { SystemDistances } from './components/SystemDistances';
+import { CommunityGoals } from './components/CommunityGoals';
 import { DataHealthFooter } from './components/DataHealthFooter';
 
 export function App() {
@@ -18,7 +19,7 @@ export function App() {
   const [exploration, setExploration] = useState<ActiveExplorationRoute | null>(null);
   const [carrier, setCarrier] = useState<ActiveFleetCarrierRoute | null>(null);
   const [tourist, setTourist] = useState<ActiveTouristRoute | null>(null);
-  const [tool, setTool] = useState<'trade' | 'neutron' | 'exploration' | 'carrier' | 'tourist' | 'distances'>('trade');
+  const [tool, setTool] = useState<'trade' | 'neutron' | 'exploration' | 'carrier' | 'tourist' | 'distances' | 'cg'>('trade');
   const [health, setHealth] = useState<DataHealth | null>(null);
 
   useEffect(() => {
@@ -74,6 +75,9 @@ export function App() {
           <button className={`tool-tab ${tool === 'distances' ? 'active' : ''}`} onClick={() => setTool('distances')}>
             DISTANCES
           </button>
+          <button className={`tool-tab ${tool === 'cg' ? 'active' : ''}`} onClick={() => setTool('cg')}>
+            COMMUNITY GOALS
+          </button>
         </div>
         {tool === 'trade' ? (
           <TradePlanner
@@ -120,8 +124,10 @@ export function App() {
             onClear={() => void api.clearTouristRoute()}
             onAnchor={(i) => void api.anchorTouristRoute(i)}
           />
-        ) : (
+        ) : tool === 'distances' ? (
           <SystemDistances ship={ship} onCompute={(req) => api.computeDistances(req)} />
+        ) : (
+          <CommunityGoals onFetch={() => api.getCommunityGoals()} />
         )}
       </main>
       <DataHealthFooter

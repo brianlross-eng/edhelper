@@ -46,4 +46,5 @@ contextBridge.exposeInMainWorld('edhelper', {
   onTouristUpdated: subscribe('tourist:updated'),
   plotExomastery: (req: unknown) => ipcRenderer.invoke('exomastery:plot', req),
   computeDistances: (req: unknown) => ipcRenderer.invoke('distances:compute', req),
+  getCommunityGoals: () => ipcRenderer.invoke('cg:list'),
 });

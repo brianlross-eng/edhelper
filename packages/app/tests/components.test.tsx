@@ -7,6 +7,7 @@ import type {
   FleetCarrierRoute, PlotFleetCarrierRequest,
   ExplorationRoute, PlotExomasteryRequest,
   TouristRoute, ActiveTouristRoute, PlotTouristRequest,
+  CommunityGoal,
 } from '../src/shared/ipc-types';
 import { CockpitPanel } from '../src/renderer/src/components/CockpitPanel';
 import { RouteChecklist } from '../src/renderer/src/components/RouteChecklist';
@@ -16,6 +17,7 @@ import { ExplorationRouter } from '../src/renderer/src/components/ExplorationRou
 import { FleetCarrierRouter } from '../src/renderer/src/components/FleetCarrierRouter';
 import { TouristPlanner } from '../src/renderer/src/components/TouristPlanner';
 import { SystemDistances } from '../src/renderer/src/components/SystemDistances';
+import { CommunityGoals } from '../src/renderer/src/components/CommunityGoals';
 import { DataHealthFooter } from '../src/renderer/src/components/DataHealthFooter';
 
 afterEach(cleanup);
@@ -490,5 +492,27 @@ describe('SystemDistances', () => {
     render(<SystemDistances ship={SHIP} onCompute={async () => ({ ok: false, error: 'x' })} />);
     fireEvent.click(screen.getByText('COMPUTE'));
     expect(await screen.findByText(/Enter a reference system and at least one target/)).toBeTruthy();
+  });
+});
+
+const CG: CommunityGoal = {
+  title: 'Aid the Alliance', system: 'Alioth', station: 'Irkutsk',
+  activityType: 'tradelist', isTrade: true,
+  commodities: ['Medicines', 'Advanced Medicines'],
+  expiry: '2026-08-01T07:00:00Z', bulletin: 'Deliver medicines.',
+};
+
+describe('CommunityGoals', () => {
+  it('lists goals with trade badges and commodities', async () => {
+    render(<CommunityGoals onFetch={async () => ({ ok: true, result: [CG] })} />);
+    expect(await screen.findByText('Aid the Alliance')).toBeTruthy();
+    expect(screen.getByTestId('cg-0').textContent).toContain('TRADE');
+    expect(screen.getByTestId('cg-0').textContent).toContain('Medicines');
+    expect(screen.getByTestId('cg-0').textContent).toContain('Alioth');
+  });
+
+  it('shows the empty state', async () => {
+    render(<CommunityGoals onFetch={async () => ({ ok: true, result: [] })} />);
+    expect(await screen.findByText(/No active community goals right now/)).toBeTruthy();
   });
 });

@@ -144,6 +144,17 @@ beforeAll(async () => {
         res.end(JSON.stringify({ results: [{ name: queried, id64: 42, ...coords }] }));
       } else if (req.url === '/stations/search') {
         res.end(JSON.stringify({ results: [{ name: 'Lave Station', system_name: 'Lave' }] }));
+      } else if (req.url?.startsWith('/2.0/website/initiatives/list')) {
+        res.end(
+          JSON.stringify({
+            activeInitiatives: [
+              {
+                title: 'CG', bulletin: 'b', expiry: 'e', activityType: 'bounty',
+                target_commodity_list: '', starsystem_name: 'Sol', market_name: 'Abraham Lincoln',
+              },
+            ],
+          })
+        );
       } else {
         res.statusCode = 404;
         res.end('{}');
@@ -166,6 +177,7 @@ beforeAll(async () => {
     env: {
       ...process.env,
       SPANSH_API_URL: `http://127.0.0.1:${spanshPort}`,
+      FRONTIER_API_URL: `http://127.0.0.1:${spanshPort}`,
       EDDN_UPLOAD_URL: `http://127.0.0.1:${eddnPort}/upload/`,
     },
     stdio: ['pipe', 'pipe', 'inherit'],
@@ -316,5 +328,15 @@ describe('engine-host (Spansh + EDDN)', () => {
     expect(result.waypoints).toHaveLength(3);
     expect(result.totalJumps).toBe(2);
     expect(result.totalTritium).toBe(260);
+  });
+
+  it('lists community goals end-to-end', async () => {
+    const res = await request('communityGoals', undefined);
+    expect(res).toEqual([
+      {
+        title: 'CG', system: 'Sol', station: 'Abraham Lincoln', activityType: 'bounty',
+        isTrade: false, commodities: [], expiry: 'e', bulletin: 'b',
+      },
+    ]);
   });
 });
