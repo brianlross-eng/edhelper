@@ -263,6 +263,23 @@ export type SystemDistancesResponse =
   | { ok: true; result: SystemDistancesResult }
   | { ok: false; error: string };
 
+/** ------- Community goals (Frontier initiatives API, via the engine host) ------- */
+export interface CommunityGoal {
+  title: string;
+  system: string;
+  station: string;
+  activityType: string;
+  isTrade: boolean;
+  commodities: string[];
+  /** ISO timestamp. */
+  expiry: string;
+  bulletin: string;
+}
+
+export type CommunityGoalsResponse =
+  | { ok: true; result: CommunityGoal[] }
+  | { ok: false; error: string };
+
 /** ------- Renderer-facing API (window.edhelper) ------- */
 export interface EdhelperApi {
   getShipState(): Promise<ShipState>;
@@ -302,4 +319,5 @@ export interface EdhelperApi {
   onTouristUpdated(cb: (r: ActiveTouristRoute | null) => void): () => void;
   plotExomastery(req: PlotExomasteryRequest): Promise<PlotExplorationResponse>;
   computeDistances(req: SystemDistancesRequest): Promise<SystemDistancesResponse>;
+  getCommunityGoals(): Promise<CommunityGoalsResponse>;
 }
