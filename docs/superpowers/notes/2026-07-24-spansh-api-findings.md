@@ -848,3 +848,227 @@ elite-dangerous-gui-7c4a80cd...):
   (HTML-ish text), `expiry` (UTC timestamp), `activityType` (`"tradelist"` =
   trade CG), `target_commodity_list` (comma-separated string, only meaningful
   for tradelist), `starsystem_name`, `market_name`.
+
+## Galaxy plotter routes (probed 2026-07-25)
+
+**Headline finding: the Galaxy Plotter is NOT at `/plotter`.** Spansh's `/plotter` page is the
+*neutron* router (its `controllers/plotter` calls `api.plotRoute` → `POST /api/route`, the
+endpoint already probed for v1.2 — its results controller even names downloads `neutron-...`).
+The full-fat plotter (ship build, supercharge, injections, refuel stops) is the site's
+**`/exact-plotter`** page: `controllers/exact-plotter` → `api.plotGenericRoute` →
+**`POST /api/generic/route`**. Same bundle hash as every prior probe
+(`elite-dangerous-gui-7c4a80cdff3416e86822ab0c9abf55fd.js`); params read from the bundle BEFORE
+submitting, one job submitted, completed on the first poll.
+
+### Endpoint
+
+`POST /api/generic/route`, form-urlencoded (`jquery.ajax`, `traditional:true`), `202` +
+`{"job","status":"queued"}`, poll `GET /api/results/{job}`. Has the inline submit-error branch
+(`"error"==t.status` → alert `t.error`) like fleet-carrier/tourist/exobiology. Note there is
+also a `/api/user/generic/route` string in the bundle (saved-routes feature, authenticated) —
+not this.
+
+### Request parameters (read from `controllers/exact-plotter` `calculate()` + `objects/ship`)
+
+**`source`/`destination` are system id64s, NOT names** (`this.source.id64` in the controller —
+second endpoint after fleet-carrier to take id64s). **There is NO manual jump-range param at
+all**: range is derived server-side from the FSD fuel model, which the site computes from an
+imported Coriolis (`$schema: ship-loadout/4`) or SLEF journal-loadout JSON via `objects/ship`.
+
+| Field sent | Type | Site default | Notes |
+|---|---|---|---|
+| `source` | string(id64) | — required | start system id64 |
+| `destination` | string(id64) | — required | end system id64 |
+| `is_supercharged` | `'0'`/`'1'` | `0` | currently supercharged right now |
+| `use_supercharge` | `'0'`/`'1'` | `1` | allow neutron supercharging |
+| `use_injections` | `'0'`/`'1'` | `0` | allow FSD injection boosts |
+| `use_injections_when_required` | `'0'`/`'1'` | `0` | only inject when otherwise stuck |
+| `exclude_secondary` | `'0'`/`'1'` | `0` | ignore secondary (non-arrival) neutron stars |
+| `refuel_every_scoopable` | `'0'`/`'1'` | `1` | top up at every scoopable star |
+| `fuel_power` | string(float) | from ship | FSD fuel power constant (e.g. 2.45 for class-5) |
+| `fuel_multiplier` | string(float) | from ship | FSD fuel multiplier (e.g. 0.012 for rating A) |
+| `optimal_mass` | string(float) | from ship | FSD optimal mass, t (engineering applied) |
+| `base_mass` | string(float) | from ship | unladen mass + reservoir, t |
+| `tank_size` | string(float) | from ship | main fuel tank, t |
+| `internal_tank_size` | string(float) | from ship | **reservoir** size, t (note the rename: controller property is `reservoirSize`) |
+| `reserve_size` | string(float) | `0` | user "fuel reserve" input (`fuelReserveSize`), distinct from `internal_tank_size` |
+| `max_fuel_per_jump` | string(float) | from ship | FSD max fuel per jump, t |
+| `range_boost` | string(float) | from ship | Guardian FSD booster ly bonus (0/null if none) |
+| `ship_build` | string (raw build JSON) | from import | **optional server-side** — this probe omitted it and the job completed; echo shows `ship_build: null`. The site always sends it (round-trips it for the results page's build display). |
+| `max_time` | string(int) | `60` | compute budget; UI max 120 (patrons 240). **Consumed but NOT echoed** in `parameters` — the only param that vanishes from the echo. |
+| `cargo` | string(int) | `0` | cargo mass, t |
+| `algorithm` | string | `optimistic` | one of `fuel`, `fuel_jumps`, `guided`, `optimistic`, `pessimistic` |
+| `supercharge_multiplier` | string(int) | `4` (ship-derived) | 4 normal, 6 for the overcharge-booster MkII FSD |
+| `injection_multiplier` | string(int) | `2` (ship-derived) | injection boost multiplier |
+
+### Job submitted
+
+Sol (`10477373803`) → Lave (`633742594786`), 114.5 ly, synthetic ~35 ly Asp-class fuel model
+(`fuel_power=2.45, fuel_multiplier=0.012, optimal_mass=1050, base_mass=316.63, tank_size=32,
+internal_tank_size=0.63, max_fuel_per_jump=5`), site-default toggles, **no `ship_build`** →
+202, job `2533FB3A-87D3-11F1-AD66-97C8414F7E48`, `state:"completed"` on the first poll ~4 s
+after submit (tiny job; a cross-galaxy plot would presumably take far longer — untested).
+Fixtures (verbatim, untruncated, 5 jumps):
+- `packages/app/fixtures/spansh/galaxy-route-submit.json`
+- `packages/app/fixtures/spansh/galaxy-route-result.json`
+
+### Completed result shape
+
+```json
+{
+  "job": "...", "parameters": {...renamed echo, see below...}, "state": "completed", "status": "ok",
+  "result": {
+    "refuel_every_scoopable": true,
+    "jumps": [
+      { "name": "Sol", "id64": 10477373803, "x": 0, "y": 0, "z": 0,
+        "distance": 0, "distance_to_destination": 114.543386976289,
+        "fuel_in_tank": 32, "fuel_used": 0,
+        "has_neutron": false, "is_scoopable": false,
+        "must_refuel": false, "must_inject": 0 }
+    ]
+  }
+}
+```
+
+- `result` container = `jumps` array plus a single stray `refuel_every_scoopable: true` (boolean
+  here, echoed as number `1` in `parameters` — same value, two typings in one response). **No
+  aggregates** (no total jumps/distance/fuel) — derive client-side, same as fleet-carrier.
+- Source waypoint IS entry 0 (`distance: 0`, `fuel_used: 0`), neutron/tourist-style.
+- Per-jump fields (12, all present on every entry): `name`, `id64` (**plain number**, like
+  fleet-carrier, unlike riches' strings), `x`/`y`/`z`, `distance` (ly from previous entry),
+  `distance_to_destination` (ly remaining, 0 on final), `fuel_in_tank` (t AFTER arrival+any
+  refuel — shows full tank on `must_refuel: true` entries), `fuel_used` (t burned by this jump),
+  `has_neutron` (bool), `is_scoopable` (bool — whether THIS system's star is scoopable),
+  `must_refuel` (**bool**), `must_inject` (**int 0/1**). Mixed flag typing again — don't assume
+  uniformity (cf. fleet-carrier's `must_restock` int vs `has_icy_ring` bool).
+- The site's own results controller normalizes for display: `distance`→`distance_jumped`,
+  `distance_to_destination`→`distance_left`, `name`→`system` (`convertJump()`), mapping this
+  shape onto the neutron-results table component.
+
+**Parameter echo quirks:** `source`→`source_system`, `destination`→`destination_system`
+(id64s echoed back as **strings**, `"10477373803"`); the `'0'`/`'1'` toggles echo as real
+booleans (`is_supercharged: false`, `use_supercharge: true`, …) EXCEPT `refuel_every_scoopable`
+which echoes as number `1`; numerics echo as numbers (not strings, unlike trade/riches echoes);
+`ship_build` echoes as `null` when omitted; `max_time` is not echoed at all.
+
+### Latency / headers
+
+Sub-second 202; completed by first poll (~4 s) for this 5-jump toy route. No rate-limit
+headers, same minimal nginx set.
+
+### Summary: findings verdict (galaxy plotter)
+
+| Item | Verdict |
+|---|---|
+| Galaxy Plotter endpoint is `POST /api/generic/route` via page `/exact-plotter` (NOT `/plotter` = neutron) | **Confirmed** from bundle + live |
+| `source`/`destination` take id64s, not names | **Confirmed** from bundle (`this.source.id64`) |
+| No manual jump-range param — fuel model instead | **Confirmed**; minimal viable set = source, destination, 6 toggles, 9 fuel-model numbers, reserve_size, max_time, cargo, algorithm, 2 multipliers |
+| `ship_build` optional server-side | **Confirmed** live (omitted; job completed; echo `null`) |
+| `max_time` consumed but never echoed | **Confirmed** live |
+| Result: `result.jumps[]` + stray `refuel_every_scoopable`, no aggregates | **Confirmed** live |
+| `must_refuel` bool vs `must_inject` int in one object | **Confirmed** — mixed flag typing trap again |
+
+## Colonisation routes (probed 2026-07-25)
+
+Site page is **`/colonisation`** (British spelling; the bundle contains no "colonization"
+route). Same bundle hash as all prior probes. `controllers/colonisation` →
+`api.plotColonisationRoute` → **`POST /api/colonisation/route`**. Params read from the bundle
+first; two tiny jobs submitted (the first pair turned out to have no valid route — itself a
+finding — so one more was needed to capture the success shape).
+
+### Endpoint
+
+`POST /api/colonisation/route`, form-urlencoded, `202` + `{"job","status":"queued"}`, poll
+`GET /api/results/{job}`. Same inline submit-error branch as exact-plotter/tourist/fleet-carrier.
+
+### Request parameters (read from `controllers/colonisation` `calculate()`)
+
+| Field sent | Type | Required? | Example | Notes |
+|---|---|---|---|---|
+| `source_system` | string (system NAME) | yes | `Sol` | the form's autocomplete hits `/api/systems/field_values/system_names` — names, not id64s |
+| `destination_system` | string (system NAME) | yes | `EE Leonis` | ditto |
+
+**That is the entire request** — two keys, no range/toggles/limits of any kind. Uniquely among
+probed endpoints the SUBMIT keys already use the `_system` suffix (`source_system`, not
+`source`) and the `parameters` echo keeps them **unchanged** — no rename quirk here.
+
+### Jobs submitted
+
+1. `source_system=Sol, destination_system=Lave` (114.5 ly) → 202, job
+   `3D4A700A-87D3-11F1-912C-E0ABB1266A8B`, completed ~4 s — but with an **incomplete-route
+   result** (see below). Saved verbatim:
+   `packages/app/fixtures/spansh/colonisation-route-incomplete.json`.
+2. `source_system=Sol, destination_system=EE Leonis` (22.0 ly, a pair the first job's partial
+   route proved chainable) → 202, job `54B57A3C-87D3-11F1-B1E3-A7991D6904E3`, completed ~4 s
+   with a clean 3-waypoint route. Fixtures:
+   `packages/app/fixtures/spansh/colonisation-route-submit.json`,
+   `colonisation-route-result.json`.
+
+### Completed result shape (success)
+
+```json
+{
+  "job": "...", "parameters": {"destination_system": "EE Leonis", "source_system": "Sol"},
+  "state": "completed", "status": "ok",
+  "result": {
+    "jumps": [
+      { "name": "Sol", "id64": 10477373803, "x": 0, "y": 0, "z": 0,
+        "distance": 0, "distance_to_destination": 22.0361475052923,
+        "body_count": 40,
+        "estimated_scan_value": 605861, "estimated_mapping_value": 2213988,
+        "landmark_value": 0 }
+    ]
+  }
+}
+```
+
+- It IS a route (`result.jumps[]`), not a candidate-systems list — but each waypoint carries
+  colonisation-value data instead of fuel data: `body_count` (bodies in the system),
+  `estimated_scan_value`/`estimated_mapping_value` (system totals, credits), `landmark_value`
+  (**plain number, `0` when none** — NOT `null` as on riches bodies; observed `2000000` on the
+  SPF-LF 1 waypoint). Plus the usual `name`/`id64` (plain number)/`x`/`y`/`z`/`distance` (ly
+  from previous)/`distance_to_destination` (0 on final). No aggregates — sum client-side.
+- Source waypoint IS entry 0 with `distance: 0`.
+- **Per-hop cap is ~15 ly** (colonisation claim range): max observed hop 14.9979 — the router
+  chains systems ≤15 ly apart, which is the whole point of the tool.
+- The site's results controller reuses the same `convertJump()` normalization as exact-plotter
+  (`distance`→`distance_jumped`, `distance_to_destination`→`distance_left`, `name`→`system`)
+  and only displays the three route columns — the value fields are extra data it currently
+  ignores.
+
+### Incomplete-route branch (new envelope variant, not seen on ANY other endpoint)
+
+Sol → Lave has no valid ≤15 ly chain. The job still completes normally (`state: "completed"`,
+`status: "ok"`, HTTP 200) but `result` gains two extra keys and the `jumps` array is a partial,
+**dead-end** route:
+
+```json
+"result": {
+  "incomplete": true,
+  "reason": "Could not generate route, closest found returned",
+  "jumps": [ ...3 waypoints, last one 104.5 ly short of the destination... ]
+}
+```
+
+Trap within the trap: the partial route's `distance_to_destination` values are NOT monotonic
+(114.5 → 116.4 → 104.5 — the chain heads away from the goal before dead-ending), and the final
+waypoint is NOT the requested destination. **Client code must check `result.incomplete` before
+treating `jumps` as a delivered route** — nothing else in the envelope distinguishes this from
+success. On success the `incomplete`/`reason` keys are entirely absent (not `false`/`null`).
+
+### Latency / headers
+
+Sub-second 202 for both jobs; both completed by first poll (~4 s). No rate-limit headers.
+
+### Summary: findings verdict (colonisation)
+
+| Item | Verdict |
+|---|---|
+| Endpoint `POST /api/colonisation/route` via page `/colonisation` | **Confirmed** from bundle + live |
+| Request = `source_system` + `destination_system` names only, nothing else | **Confirmed** from bundle + live |
+| Submit keys already `_system`-suffixed; echo unchanged (no rename) | **Confirmed** — unique among probed endpoints |
+| Result is a route (`result.jumps[]`) with per-system value fields, not a candidate list | **Confirmed** live |
+| ~15 ly per-hop cap | **Confirmed** empirically (max hop 14.9979) |
+| `incomplete: true` + `reason` partial-route branch on `state: "completed"` | **New envelope variant** — must be checked client-side; absent (not false) on success |
+| `landmark_value` typed `0`-when-none here (vs `null` on riches bodies) | **New quirk** |
+| Pending envelope for these two endpoints | **Not captured** (all three jobs completed by first poll, ~4 s) — assumed same as siblings |

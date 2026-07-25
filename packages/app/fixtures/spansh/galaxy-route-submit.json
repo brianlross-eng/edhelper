@@ -1,0 +1,36 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://spansh.co.uk/api/generic/route",
+    "encoding": "application/x-www-form-urlencoded",
+    "form": {
+      "source": "10477373803",
+      "destination": "633742594786",
+      "is_supercharged": "0",
+      "use_supercharge": "1",
+      "use_injections": "0",
+      "use_injections_when_required": "0",
+      "exclude_secondary": "0",
+      "refuel_every_scoopable": "1",
+      "fuel_power": "2.45",
+      "fuel_multiplier": "0.012",
+      "optimal_mass": "1050",
+      "base_mass": "316.63",
+      "tank_size": "32",
+      "internal_tank_size": "0.63",
+      "reserve_size": "0",
+      "max_fuel_per_jump": "5",
+      "range_boost": "0",
+      "max_time": "60",
+      "cargo": "0",
+      "algorithm": "optimistic",
+      "supercharge_multiplier": "4",
+      "injection_multiplier": "2"
+    },
+    "notes": "Galaxy Plotter = site page /exact-plotter (controllers/exact-plotter -> api.plotGenericRoute -> /api/generic/route). NOT /plotter (that page is the neutron router, already probed as /api/route). source/destination are system id64s, NOT names (Sol -> Lave here). There is NO manual jump-range param on this tool: range is derived server-side from the FSD fuel model (fuel_power, fuel_multiplier, optimal_mass, base_mass, tank_size, internal_tank_size, max_fuel_per_jump, range_boost) which the site computes from an imported Coriolis/SLEF ship build (objects/ship). The site also sends ship_build (raw build JSON string) but it is OPTIONAL server-side: this probe omitted it and the job completed (parameters echo shows ship_build: null). Toggle defaults shown are the site's own (use_supercharge=1, refuel_every_scoopable=1, rest 0). algorithm is one of: fuel, fuel_jumps, guided, optimistic, pessimistic (site default optimistic). max_time site default 60, UI max 120 (240 for patrons); it is consumed but NOT echoed back in parameters. Fuel-model values here approximate a 5A-FSD Asp Explorer (~35 ly laden range)."
+  },
+  "response": {
+    "status": 202,
+    "body": {"job": "2533FB3A-87D3-11F1-AD66-97C8414F7E48", "status": "queued"}
+  }
+}
