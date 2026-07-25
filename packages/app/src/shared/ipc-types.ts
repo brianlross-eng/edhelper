@@ -242,6 +242,27 @@ export interface PlotExomasteryRequest {
   avoidThargoids: boolean;
 }
 
+/** ------- System distances (local calc from search coords) ------- */
+export interface SystemDistancesRequest {
+  from: string;
+  systems: string[];
+}
+
+export interface SystemDistanceRow {
+  system: string;
+  distanceLy: number;
+}
+
+export interface SystemDistancesResult {
+  from: string;
+  rows: SystemDistanceRow[];
+  unknown: string[];
+}
+
+export type SystemDistancesResponse =
+  | { ok: true; result: SystemDistancesResult }
+  | { ok: false; error: string };
+
 /** ------- Renderer-facing API (window.edhelper) ------- */
 export interface EdhelperApi {
   getShipState(): Promise<ShipState>;
@@ -280,4 +301,5 @@ export interface EdhelperApi {
   anchorTouristRoute(index: number): Promise<ActiveTouristRoute | null>;
   onTouristUpdated(cb: (r: ActiveTouristRoute | null) => void): () => void;
   plotExomastery(req: PlotExomasteryRequest): Promise<PlotExplorationResponse>;
+  computeDistances(req: SystemDistancesRequest): Promise<SystemDistancesResponse>;
 }

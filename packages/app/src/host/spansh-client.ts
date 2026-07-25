@@ -17,6 +17,9 @@ import type {
   TouristRoute,
   TouristWaypoint,
   PlotExomasteryRequest,
+  SystemDistancesRequest,
+  SystemDistanceRow,
+  SystemDistancesResult,
 } from '../shared/ipc-types.js';
 
 /*
@@ -443,20 +446,57 @@ export class SpanshClient {
     throw new Error('Spansh fleet carrier job timed out');
   }
 
-  /** Exact-name (case-insensitive) system lookup; the carrier endpoint needs id64s. */
-  private async resolveSystemId64(name: string): Promise<string> {
+  /** Exact-name (case-insensitive) system lookup returning the raw Spansh record. */
+  private async searchSystemRecord(name: string): Promise<any | null> {
     const body = await this.request('/systems/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ filters: { name: { value: name } }, size: 10 }),
     });
-    const match = (body.results ?? []).find(
-      (r: any) => String(r.name ?? '').toLowerCase() === name.toLowerCase()
+    return (
+      (body.results ?? []).find(
+        (r: any) => String(r.name ?? '').toLowerCase() === name.toLowerCase()
+      ) ?? null
     );
+  }
+
+  /** Exact-name (case-insensitive) system lookup; the carrier endpoint needs id64s. */
+  private async resolveSystemId64(name: string): Promise<string> {
+    const match = await this.searchSystemRecord(name);
     if (!match || match.id64 === undefined || match.id64 === null) {
       throw new Error(`Unknown system: ${name}`);
     }
     return String(match.id64);
+  }
+
+  /*
+   * Distances are a pure local calc: /systems/search records carry x/y/z
+   * (live-checked 2026-07-24: Lave = 75.75/48.75/70.75). No job API involved.
+   */
+  async systemDistances(req: SystemDistancesRequest): Promise<SystemDistancesResult> {
+    if (req.systems.length > 50) throw new Error('Too many systems (max 50)');
+    const ref = await this.searchSystemRecord(req.from);
+    if (!ref) throw new Error(`Unknown system: ${req.from}`);
+    const targets = await Promise.all(
+      req.systems.map(async (s) => ({ query: s, record: await this.searchSystemRecord(s) }))
+    );
+    const rows: SystemDistanceRow[] = [];
+    const unknown: string[] = [];
+    for (const t of targets) {
+      if (!t.record) {
+        unknown.push(t.query);
+        continue;
+      }
+      const dx = (t.record.x ?? 0) - (ref.x ?? 0);
+      const dy = (t.record.y ?? 0) - (ref.y ?? 0);
+      const dz = (t.record.z ?? 0) - (ref.z ?? 0);
+      rows.push({
+        system: String(t.record.name ?? t.query),
+        distanceLy: Math.sqrt(dx * dx + dy * dy + dz * dz),
+      });
+    }
+    rows.sort((a, b) => a.distanceLy - b.distanceLy);
+    return { from: String(ref.name ?? req.from), rows, unknown };
   }
 
   private mapFleetCarrierResult(rawJumps: any[]): FleetCarrierRoute {

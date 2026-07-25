@@ -358,3 +358,51 @@ describe('plotExomastery', () => {
     expect(route.totalLandmarkValue).toBe(35275300); // sum of landmark_value across fixture bodies
   });
 });
+
+describe('systemDistances', () => {
+  const COORDS: Record<string, { name: string; x: number; y: number; z: number }> = {
+    sol: { name: 'Sol', x: 0, y: 0, z: 0 },
+    lave: { name: 'Lave', x: 75.75, y: 48.75, z: 70.75 },
+    'alpha centauri': { name: 'Alpha Centauri', x: 3.03125, y: -0.09375, z: 3.15625 },
+  };
+
+  function distanceRoutes() {
+    return {
+      '/systems/search': (init?: any) => {
+        const q = String(JSON.parse(init.body).filters.name.value).toLowerCase();
+        const hit = COORDS[q];
+        return { body: { results: hit ? [hit] : [] } };
+      },
+    };
+  }
+
+  it('computes sorted distances with canonical casing and collects unknowns', async () => {
+    const { fn } = fakeFetch(distanceRoutes());
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    const result = await client.systemDistances({
+      from: 'sol',
+      systems: ['lave', 'Nowhereia', 'ALPHA CENTAURI'],
+    });
+    expect(result.from).toBe('Sol');
+    expect(result.rows.map((r) => r.system)).toEqual(['Alpha Centauri', 'Lave']); // ascending
+    expect(result.rows[0].distanceLy).toBeCloseTo(4.38, 2);
+    expect(result.rows[1].distanceLy).toBeCloseTo(114.54, 2);
+    expect(result.unknown).toEqual(['Nowhereia']);
+  });
+
+  it('throws on an unknown reference', async () => {
+    const { fn } = fakeFetch(distanceRoutes());
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    await expect(client.systemDistances({ from: 'Nowhereia', systems: ['Sol'] }))
+      .rejects.toThrow('Unknown system: Nowhereia');
+  });
+
+  it('rejects lists over 50 systems', async () => {
+    const { fn, calls } = fakeFetch(distanceRoutes());
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    const systems = Array.from({ length: 51 }, (_, i) => `Sys ${i}`);
+    await expect(client.systemDistances({ from: 'Sol', systems }))
+      .rejects.toThrow('Too many systems (max 50)');
+    expect(calls.length).toBe(0);
+  });
+});
