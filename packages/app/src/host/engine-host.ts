@@ -6,9 +6,11 @@ import { fetchCommunityGoals } from './frontier.js';
 import { buildCommodityMessage, buildJournalMessage, type TrackedPosition } from './eddn/builders.js';
 import { EddnUploader } from './eddn/uploader.js';
 import type {
+  PlotColonisationRequest,
   PlotExomasteryRequest,
   PlotExplorationRequest,
   PlotFleetCarrierRequest,
+  PlotGalaxyRequest,
   PlotNeutronRequest,
   PlotTouristRequest,
   PlotTradeRequest,
@@ -80,6 +82,10 @@ async function handle(req: RpcRequest): Promise<unknown> {
       return spansh.plotTourist(req.params as PlotTouristRequest);
     case 'plotExomastery':
       return spansh.plotExomastery(req.params as PlotExomasteryRequest);
+    case 'plotGalaxy':
+      return spansh.plotGalaxy(req.params as PlotGalaxyRequest);
+    case 'plotColonisation':
+      return spansh.plotColonisation(req.params as PlotColonisationRequest);
     case 'systemDistances':
       return spansh.systemDistances(req.params as SystemDistancesRequest);
     case 'communityGoals':

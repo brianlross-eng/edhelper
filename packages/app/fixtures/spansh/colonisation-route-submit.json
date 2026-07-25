@@ -1,0 +1,16 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://spansh.co.uk/api/colonisation/route",
+    "encoding": "application/x-www-form-urlencoded",
+    "form": {
+      "source_system": "Sol",
+      "destination_system": "EE Leonis"
+    },
+    "notes": "Colonisation plotter = site page /colonisation (controllers/colonisation -> api.plotColonisationRoute -> /api/colonisation/route). These TWO params are the ENTIRE request - no range, no toggles, nothing else (read from the controller's calculate()). Values are system NAMES, not id64s (the form's autocomplete hits /api/systems/field_values/system_names). Param names are source_system/destination_system on SUBMIT (not source/destination), and the parameters echo keeps them unchanged. Result is a chained route of jumps with a hard per-hop cap of ~15 ly (max observed hop 14.998); when no valid chain exists the job still completes state=completed but result carries incomplete:true plus a reason string and the closest partial route found (see colonisation-route-incomplete.json, from a Sol -> Lave attempt, job 3D4A700A-87D3-11F1-912C-E0ABB1266A8B)."
+  },
+  "response": {
+    "status": 202,
+    "body": {"job": "54B57A3C-87D3-11F1-B1E3-A7991D6904E3", "status": "queued"}
+  }
+}

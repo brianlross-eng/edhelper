@@ -406,3 +406,149 @@ describe('systemDistances', () => {
     expect(calls.length).toBe(0);
   });
 });
+
+describe('plotGalaxy', () => {
+  const KNOWN: Record<string, { name: string; id64: number }> = {
+    sol: { name: 'Sol', id64: 10477373803 },
+    lave: { name: 'Lave', id64: 633742594786 },
+  };
+
+  const GREQ = {
+    from: 'Sol', to: 'Lave', algorithm: 'optimistic', cargo: 0,
+    useSupercharge: true, useInjections: false, refuelEveryScoopable: true,
+    fuelPower: 2.45, fuelMultiplier: 0.012, optimalMass: 1050, baseMass: 316.63,
+    tankSize: 32, internalTankSize: 0.63, maxFuelPerJump: 5, rangeBoost: 0, reserveSize: 0,
+  };
+
+  function galaxyRoutes() {
+    return {
+      '/systems/search': (init?: any) => {
+        const q = String(JSON.parse(init.body).filters.name.value).toLowerCase();
+        const hit = KNOWN[q];
+        return { body: { results: hit ? [hit] : [] } };
+      },
+      '/generic/route': () => ({
+        status: 202,
+        body: fixture('galaxy-route-submit.json').response.body,
+      }),
+      '/results/': () => ({ body: fixture('galaxy-route-result.json') }),
+    };
+  }
+
+  it('resolves id64s, submits every probe-verified key, and maps the fixture route', async () => {
+    const { fn, calls } = fakeFetch(galaxyRoutes());
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    const route = await client.plotGalaxy(GREQ);
+
+    const submit = calls.find((c) => c.url.includes('/generic/route'))!;
+    const form = new URLSearchParams(String(submit.init.body));
+    expect(form.get('source')).toBe('10477373803');
+    expect(form.get('destination')).toBe('633742594786');
+    expect(form.get('is_supercharged')).toBe('0');
+    expect(form.get('use_supercharge')).toBe('1');
+    expect(form.get('use_injections')).toBe('0');
+    expect(form.get('use_injections_when_required')).toBe('0');
+    expect(form.get('exclude_secondary')).toBe('0');
+    expect(form.get('refuel_every_scoopable')).toBe('1');
+    expect(form.get('fuel_power')).toBe('2.45');
+    expect(form.get('fuel_multiplier')).toBe('0.012');
+    expect(form.get('optimal_mass')).toBe('1050');
+    expect(form.get('base_mass')).toBe('316.63');
+    expect(form.get('tank_size')).toBe('32');
+    expect(form.get('internal_tank_size')).toBe('0.63');
+    expect(form.get('reserve_size')).toBe('0');
+    expect(form.get('max_fuel_per_jump')).toBe('5');
+    expect(form.get('range_boost')).toBe('0');
+    expect(form.get('max_time')).toBe('60');
+    expect(form.get('cargo')).toBe('0');
+    expect(form.get('algorithm')).toBe('optimistic');
+    expect(form.get('supercharge_multiplier')).toBe('4');
+    expect(form.get('injection_multiplier')).toBe('2');
+    expect(form.has('ship_build')).toBe(false); // optional server-side; deliberately omitted
+
+    // Fixture ground truth: 5 jumps, Sol → Core Sys Sector ON-T b3-5 → Bunus → Arque → Lave.
+    expect(route.waypoints).toHaveLength(5);
+    expect(route.waypoints[0]).toMatchObject({
+      system: 'Sol', jumps: 0, distance: 0, fuelUsed: 0, fuelInTank: 32,
+      neutron: false, scoopable: false, mustRefuel: false, mustInject: false,
+    });
+    expect(route.waypoints[1]).toMatchObject({
+      system: 'Core Sys Sector ON-T b3-5', jumps: 1, scoopable: true, mustRefuel: true,
+    });
+    expect(route.waypoints[1].fuelUsed).toBeCloseTo(4.786, 2);
+    expect(route.waypoints[4]).toMatchObject({ system: 'Lave', distanceToGo: 0, mustRefuel: false });
+    expect(route.totalJumps).toBe(4);
+    expect(route.totalDistanceLy).toBeCloseTo(118.34, 1); // 34.767 + 35.188 + 31.288 + 17.100
+    expect(route.totalFuel).toBeCloseTo(14.25, 2); // 4.786 + 4.930 + 3.697 + 0.841
+  });
+
+  it('surfaces inline submit errors and never polls', async () => {
+    const routes = galaxyRoutes();
+    routes['/generic/route'] = () => ({ status: 202, body: { status: 'error', error: 'no route found' } });
+    const { fn, calls } = fakeFetch(routes);
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    await expect(client.plotGalaxy(GREQ)).rejects.toThrow('no route found');
+    expect(calls.some((c) => c.url.includes('/results/'))).toBe(false);
+  });
+
+  it('rejects unknown system names before submitting', async () => {
+    const { fn, calls } = fakeFetch(galaxyRoutes());
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    await expect(client.plotGalaxy({ ...GREQ, to: 'Nowhereia' })).rejects.toThrow('Unknown system: Nowhereia');
+    expect(calls.some((c) => c.url.includes('/generic/route'))).toBe(false);
+  });
+});
+
+describe('plotColonisation', () => {
+  it('submits system names and maps the success fixture', async () => {
+    const { fn, calls } = fakeFetch({
+      '/colonisation/route': () => ({
+        status: 202,
+        body: fixture('colonisation-route-submit.json').response.body,
+      }),
+      '/results/': () => ({ body: fixture('colonisation-route-result.json') }),
+    });
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    const route = await client.plotColonisation({ from: 'Sol', to: 'EE Leonis' });
+
+    const submit = calls.find((c) => c.url.includes('/colonisation/route'))!;
+    const form = new URLSearchParams(String(submit.init.body));
+    expect(form.get('source_system')).toBe('Sol');
+    expect(form.get('destination_system')).toBe('EE Leonis');
+    expect([...form.keys()]).toEqual(['source_system', 'destination_system']); // the ENTIRE request
+
+    expect(route.waypoints).toHaveLength(3);
+    expect(route.waypoints.map((w) => w.system)).toEqual(['Sol', 'SPF-LF 1', 'EE Leonis']);
+    expect(route.waypoints[0]).toMatchObject({ jumps: 0, bodyCount: 40, scanValue: 605861, mappingValue: 2213988 });
+    expect(route.waypoints[1]).toMatchObject({ jumps: 1, bodyCount: 9, scanValue: 5205, mappingValue: 22339 });
+    expect(route.waypoints[1].distance).toBeCloseTo(11.821, 2);
+    expect(route.waypoints[2].distanceToGo).toBe(0);
+    expect(route.totalJumps).toBe(2);
+    expect(route.totalDistanceLy).toBeCloseTo(26.82, 2); // 11.821 + 14.998 (both hops under the ~15 ly cap)
+    expect(route.incomplete).toBe(false);
+    expect(route.reason).toBeUndefined();
+  });
+
+  it('carries incomplete + reason and still maps the partial dead-end route', async () => {
+    const { fn } = fakeFetch({
+      '/colonisation/route': () => ({ status: 202, body: { job: '3D4A700A', status: 'queued' } }),
+      '/results/': () => ({ body: fixture('colonisation-route-incomplete.json') }),
+    });
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    const route = await client.plotColonisation({ from: 'Sol', to: 'Lave' });
+    expect(route.incomplete).toBe(true);
+    expect(route.reason).toBe('Could not generate route, closest found returned');
+    expect(route.waypoints).toHaveLength(3); // partial route still mapped
+    expect(route.waypoints[2].system).toBe('EE Leonis'); // dead-end — NOT the requested Lave
+    expect(route.waypoints[2].distanceToGo).toBeCloseTo(104.5, 1); // non-monotonic, never reaches 0
+  });
+
+  it('surfaces inline submit errors and never polls', async () => {
+    const { fn, calls } = fakeFetch({
+      '/colonisation/route': () => ({ status: 202, body: { status: 'error', error: 'no such system' } }),
+    });
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    await expect(client.plotColonisation({ from: 'X', to: 'Y' })).rejects.toThrow('no such system');
+    expect(calls.some((c) => c.url.includes('/results/'))).toBe(false);
+  });
+});

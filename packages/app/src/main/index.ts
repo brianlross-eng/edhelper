@@ -17,6 +17,10 @@ import type {
   FleetCarrierWaypoint,
   TouristRoute,
   TouristWaypoint,
+  GalaxyRoute,
+  GalaxyWaypoint,
+  ColonisationRoute,
+  ColonisationWaypoint,
 } from '../shared/ipc-types.js';
 
 const watcher = new JournalWatcher(process.env.EDHELPER_JOURNAL_DIR ?? DEFAULT_JOURNAL_DIR);
@@ -32,6 +36,24 @@ const carrier = new WaypointTracker<FleetCarrierWaypoint, FleetCarrierRoute>({
 const tourist = new WaypointTracker<TouristWaypoint, TouristRoute>({
   copy: (text) => clipboard.writeText(text),
 });
+const galaxy = new WaypointTracker<GalaxyWaypoint, GalaxyRoute>({
+  copy: (text) => clipboard.writeText(text),
+});
+const colonisation = new WaypointTracker<ColonisationWaypoint, ColonisationRoute>({
+  copy: (text) => clipboard.writeText(text),
+});
+// Travel routes are mutually exclusive: they all own the clipboard. Starting any
+// one clears every other member first. Trade (RouteTracker) is deliberately NOT
+// in this group — unchanged since v1.2.
+const travelTrackers: Array<{ clear(): void }> = [neutron, exploration, carrier, tourist, galaxy, colonisation];
+
+function startExclusive<R, A>(tracker: { start(route: R): A; clear(): void }, route: R): A {
+  for (const t of travelTrackers) {
+    if (t !== tracker) t.clear();
+  }
+  return tracker.start(route);
+}
+
 // The engine host runs under plain Node (native deps use the system ABI, not Electron's).
 const engine = new EngineClient({
   command: process.env.EDHELPER_NODE ?? 'node',
@@ -71,6 +93,8 @@ app.whenReady().then(() => {
     exploration.onJournalEvent(ev);
     carrier.onJournalEvent(ev);
     tourist.onJournalEvent(ev);
+    galaxy.onJournalEvent(ev);
+    colonisation.onJournalEvent(ev);
   });
   void watcher.start();
   // Registered after start() on purpose: the initial synchronous replay of the
@@ -90,6 +114,8 @@ app.whenReady().then(() => {
   exploration.on('updated', (r) => win?.webContents.send('exploration:updated', r));
   carrier.on('updated', (r) => win?.webContents.send('carrier:updated', r));
   tourist.on('updated', (r) => win?.webContents.send('tourist:updated', r));
+  galaxy.on('updated', (r) => win?.webContents.send('galaxy:updated', r));
+  colonisation.on('updated', (r) => win?.webContents.send('colonisation:updated', r));
   engine.on('event:eddn', (e) => win?.webContents.send('health:eddn', e));
   engine.on('event:spansh', (s) => win?.webContents.send('health:spansh', s));
   engine.on('event:fatal', (d: unknown) => {
@@ -130,12 +156,7 @@ app.whenReady().then(() => {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
   });
-  ipcMain.handle('neutron:start', (_e, route: NeutronRoute) => {
-    exploration.clear(); // travel routes are mutually exclusive (all own the clipboard)
-    carrier.clear();
-    tourist.clear();
-    return neutron.start(route);
-  });
+  ipcMain.handle('neutron:start', (_e, route: NeutronRoute) => startExclusive(neutron, route));
   ipcMain.handle('neutron:clear', () => {
     neutron.clear();
     return null;
@@ -149,12 +170,7 @@ app.whenReady().then(() => {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
   });
-  ipcMain.handle('exploration:start', (_e, route: ExplorationRoute) => {
-    neutron.clear(); // travel routes are mutually exclusive (all own the clipboard)
-    carrier.clear();
-    tourist.clear();
-    return exploration.start(route);
-  });
+  ipcMain.handle('exploration:start', (_e, route: ExplorationRoute) => startExclusive(exploration, route));
   ipcMain.handle('exploration:clear', () => {
     exploration.clear();
     return null;
@@ -168,12 +184,7 @@ app.whenReady().then(() => {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
   });
-  ipcMain.handle('carrier:start', (_e, route: FleetCarrierRoute) => {
-    neutron.clear(); // travel routes are mutually exclusive (all own the clipboard)
-    exploration.clear();
-    tourist.clear();
-    return carrier.start(route);
-  });
+  ipcMain.handle('carrier:start', (_e, route: FleetCarrierRoute) => startExclusive(carrier, route));
   ipcMain.handle('carrier:clear', () => {
     carrier.clear();
     return null;
@@ -187,12 +198,7 @@ app.whenReady().then(() => {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
   });
-  ipcMain.handle('tourist:start', (_e, route: TouristRoute) => {
-    neutron.clear(); // travel routes are mutually exclusive (all own the clipboard)
-    exploration.clear();
-    carrier.clear();
-    return tourist.start(route);
-  });
+  ipcMain.handle('tourist:start', (_e, route: TouristRoute) => startExclusive(tourist, route));
   ipcMain.handle('tourist:clear', () => {
     tourist.clear();
     return null;
@@ -206,6 +212,34 @@ app.whenReady().then(() => {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
   });
+  ipcMain.handle('galaxy:plot', async (_e, req) => {
+    try {
+      return { ok: true, result: await engine.request('plotGalaxy', req) };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  });
+  ipcMain.handle('galaxy:start', (_e, route: GalaxyRoute) => startExclusive(galaxy, route));
+  ipcMain.handle('galaxy:clear', () => {
+    galaxy.clear();
+    return null;
+  });
+  ipcMain.handle('galaxy:get', () => galaxy.get());
+  ipcMain.handle('galaxy:anchor', (_e, index: number) => galaxy.anchor(index));
+  ipcMain.handle('colonisation:plot', async (_e, req) => {
+    try {
+      return { ok: true, result: await engine.request('plotColonisation', req) };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  });
+  ipcMain.handle('colonisation:start', (_e, route: ColonisationRoute) => startExclusive(colonisation, route));
+  ipcMain.handle('colonisation:clear', () => {
+    colonisation.clear();
+    return null;
+  });
+  ipcMain.handle('colonisation:get', () => colonisation.get());
+  ipcMain.handle('colonisation:anchor', (_e, index: number) => colonisation.anchor(index));
   ipcMain.handle('distances:compute', async (_e, req) => {
     try {
       return { ok: true, result: await engine.request('systemDistances', req) };
