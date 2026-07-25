@@ -60,7 +60,7 @@ export function TouristPlanner({ ship, route, onPlot, onStart, onClear, onAnchor
       <div key={i} className={`hop ${cls}`} data-testid={`tp-wp-${i}`}>
         <span className="hop-marker">{marker}</span>
         <span>{wp.system}</span>
-        <span className="muted">{wp.jumps > 0 ? `${wp.distance.toFixed(1)} ly · ${wp.jumps} jumps` : 'start'}</span>
+        <span className="muted">{i > 0 ? `${wp.distance.toFixed(1)} ly · ${wp.jumps} jumps` : 'start'}</span>
         {copyBtn ? <button className="btn secondary" onClick={() => onAnchor(i)}>Copy</button> : <span />}
       </div>
     );

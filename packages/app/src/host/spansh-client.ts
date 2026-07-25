@@ -363,7 +363,7 @@ export class SpanshClient {
         // key (null on almost all, occasionally a real number — see the riches
         // fixture's 1,000,000 outlier) but never landmarks[], and
         // non-exobiology routes must stay landmark-free.
-        ...(b.landmarks !== undefined
+        ...(Array.isArray(b.landmarks)
           ? {
               landmarkValue: b.landmark_value ?? 0,
               landmarks: (b.landmarks ?? []).map((l: any) => ({
