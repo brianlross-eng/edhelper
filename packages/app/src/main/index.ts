@@ -6,10 +6,12 @@ import { EngineClient } from './engine-client.js';
 import { RouteTracker } from './route-tracker.js';
 import { NeutronTracker } from './neutron-tracker.js';
 import { WaypointTracker } from './waypoint-tracker.js';
-import { loadSettings, saveSettings } from './settings.js';
+import { activateProfile, deleteProfile, loadSettings, sanitizeProfile, saveSettings, upsertProfile } from './settings.js';
+import { deriveFuelModel } from './ship-model.js';
 import type {
   DataHealth,
   PlotTradeRequest,
+  ShipProfilesState,
   NeutronRoute,
   ExplorationRoute,
   ExplorationWaypoint,
@@ -79,7 +81,12 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   engine.start();
-  const settings = loadSettings(app.getPath('userData'));
+  let settings = loadSettings(app.getPath('userData'));
+  const persist = () => saveSettings(app.getPath('userData'), settings);
+  const profilesState = (): ShipProfilesState => ({
+    profiles: settings.shipProfiles,
+    active: settings.activeProfile ?? null,
+  });
   void engine
     .request('setEddnUpload', { enabled: settings.eddnUpload })
     .catch((err) => console.error('[eddn] failed to apply persisted toggle at boot:', err));
@@ -254,8 +261,29 @@ app.whenReady().then(() => {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
   });
+  ipcMain.handle('ship:model:get', () => deriveFuelModel(watcher.getState()));
+  ipcMain.handle('ship:profiles:get', () => profilesState());
+  ipcMain.handle('ship:profiles:save', (_e, profile: unknown) => {
+    const clean = sanitizeProfile(profile);
+    if (clean) {
+      settings = upsertProfile(settings, clean);
+      persist();
+    }
+    return profilesState();
+  });
+  ipcMain.handle('ship:profiles:delete', (_e, name: string) => {
+    settings = deleteProfile(settings, name);
+    persist();
+    return profilesState();
+  });
+  ipcMain.handle('ship:profiles:activate', (_e, name: string | null) => {
+    settings = activateProfile(settings, name);
+    persist();
+    return profilesState();
+  });
   ipcMain.handle('eddn:set', async (_e, enabled: boolean) => {
-    saveSettings(app.getPath('userData'), { eddnUpload: enabled });
+    settings = { ...settings, eddnUpload: enabled };
+    persist();
     try {
       return await engine.request('setEddnUpload', { enabled });
     } catch (err) {

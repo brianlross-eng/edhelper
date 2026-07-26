@@ -497,6 +497,19 @@ describe('plotGalaxy', () => {
     await expect(client.plotGalaxy({ ...GREQ, to: 'Nowhereia' })).rejects.toThrow('Unknown system: Nowhereia');
     expect(calls.some((c) => c.url.includes('/generic/route'))).toBe(false);
   });
+
+  it('sends ship_build verbatim alongside the numeric fuel model when provided', async () => {
+    const { fn, calls } = fakeFetch(galaxyRoutes());
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    const SLEF = '{"$schema":"https://coriolis.io/schemas/ship-loadout/4.json#","name":"Exploraconda","ship":"Anaconda"}';
+    await client.plotGalaxy({ ...GREQ, shipBuild: SLEF });
+    const submit = calls.find((c) => c.url.includes('/generic/route'))!;
+    const form = new URLSearchParams(String(submit.init.body));
+    expect(form.get('ship_build')).toBe(SLEF);
+    // The numeric model is still sent — the site always sends both (findings doc).
+    expect(form.get('fuel_power')).toBe('2.45');
+    expect(form.get('optimal_mass')).toBe('1050');
+  });
 });
 
 describe('plotColonisation', () => {
