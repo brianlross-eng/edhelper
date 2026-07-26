@@ -1,5 +1,9 @@
 appId: com.gumswampsoftware.edhelper
 productName: ED Helper
+# electron is hoisted to the workspace root, so electron-builder cannot infer
+# the version from packages/app/node_modules — pin it explicitly (keep in sync
+# with the root devDependency).
+electronVersion: 37.10.3
 directories:
   output: release
   buildResources: build

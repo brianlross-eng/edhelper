@@ -1,6 +1,9 @@
 {
   "name": "@edhelper/app",
+  "productName": "ED Helper",
   "version": "1.0.0",
+  "description": "Elite Dangerous companion: trade planner, Spansh route plotters, ship configurator, EDDN upload",
+  "author": "Gum Swamp Software",
   "private": true,
   "main": "out/main/index.js",
   "scripts": {
