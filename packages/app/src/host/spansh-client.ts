@@ -655,9 +655,10 @@ export class SpanshClient {
    *    tank_size, internal_tank_size, max_fuel_per_jump, range_boost) + reserve_size.
    *    Fixed this release: is_supercharged=0, use_injections_when_required=0,
    *    exclude_secondary=0, max_time=60, supercharge_multiplier=4, injection_multiplier=2.
-   *    ship_build is OPTIONAL server-side and deliberately omitted (probe-confirmed;
-   *    echo shows ship_build: null). Can reject inline on submit with
-   *    { status: 'error', error: '<message>' }.
+   *    ship_build is OPTIONAL server-side (probe-confirmed; echo shows ship_build: null
+   *    when omitted). v1.9: sent verbatim alongside the numeric model when the caller
+   *    provides req.shipBuild (the site always sends both), still omitted otherwise.
+   *    Can reject inline on submit with { status: 'error', error: '<message>' }.
    *  - GET {base}/results/{job} -> completed body result.jumps[] (source at index 0,
    *    distance 0) + a stray result.refuel_every_scoopable — per jump: { name, id64,
    *    x, y, z, distance, distance_to_destination, fuel_in_tank (t AFTER arrival+refuel),
@@ -694,6 +695,10 @@ export class SpanshClient {
       supercharge_multiplier: '4',
       injection_multiplier: '2',
     });
+    // Optional server-side (probe: omitted -> ship_build:null echo, job completes).
+    // When a build profile is active we send it verbatim ALONGSIDE the numeric
+    // model, mirroring the site, which always sends both (findings doc).
+    if (req.shipBuild) form.set('ship_build', req.shipBuild);
     const submit = await this.request('/generic/route', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },

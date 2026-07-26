@@ -10,6 +10,7 @@ import type {
   GalaxyRoute, ActiveGalaxyRoute, PlotGalaxyRequest,
   ColonisationRoute, ActiveColonisationRoute, PlotColonisationRequest,
   CommunityGoal,
+  FuelModelFields, ShipProfile, ShipProfilesState,
 } from '../src/shared/ipc-types';
 import { CockpitPanel } from '../src/renderer/src/components/CockpitPanel';
 import { RouteChecklist } from '../src/renderer/src/components/RouteChecklist';
@@ -23,6 +24,7 @@ import { ColonisationPlotter } from '../src/renderer/src/components/Colonisation
 import { SystemDistances } from '../src/renderer/src/components/SystemDistances';
 import { CommunityGoals } from '../src/renderer/src/components/CommunityGoals';
 import { DataHealthFooter } from '../src/renderer/src/components/DataHealthFooter';
+import { ShipConfig } from '../src/renderer/src/components/ShipConfig';
 
 afterEach(cleanup);
 
@@ -540,7 +542,7 @@ describe('GalaxyPlotter', () => {
   it('prefills From/cargo, submits the probe-default fuel model, and shows badges', async () => {
     let seen: PlotGalaxyRequest | null = null;
     render(
-      <GalaxyPlotter ship={SHIP} route={null}
+      <GalaxyPlotter ship={SHIP} route={null} shipModel={null} activeProfile={null}
         onPlot={async (req) => { seen = req; return { ok: true, result: GROUTE }; }}
         onStart={() => {}} onClear={() => {}} onAnchor={() => {}} />
     );
@@ -564,7 +566,7 @@ describe('GalaxyPlotter', () => {
 
   it('clears a stale plotted result when an option changes', async () => {
     render(
-      <GalaxyPlotter ship={SHIP} route={null}
+      <GalaxyPlotter ship={SHIP} route={null} shipModel={null} activeProfile={null}
         onPlot={async () => ({ ok: true, result: GROUTE })}
         onStart={() => {}} onClear={() => {}} onAnchor={() => {}} />
     );
@@ -579,7 +581,7 @@ describe('GalaxyPlotter', () => {
   it('renders the active checklist with badges, fuel column, and anchors', () => {
     let anchored = -1;
     render(
-      <GalaxyPlotter ship={SHIP} route={GACTIVE}
+      <GalaxyPlotter ship={SHIP} route={GACTIVE} shipModel={null} activeProfile={null}
         onPlot={async () => ({ ok: false, error: 'x' })} onStart={() => {}} onClear={() => {}} onAnchor={(i) => (anchored = i)} />
     );
     expect(screen.getByTestId('gp-wp-1').textContent).toContain('▶');
@@ -665,5 +667,185 @@ describe('CockpitPanel galaxy + colonisation cards', () => {
     render(<CockpitPanel ship={SHIP} route={null} neutron={null} exploration={null} carrier={null} tourist={null} galaxy={null} colonisation={CACTIVE} />);
     expect(screen.getByTestId('colonisation-card').textContent).toContain('Waypoint 2 of 3');
     expect(screen.getByTestId('colonisation-card').textContent).toContain('SPF-LF 1');
+  });
+});
+
+const T6_MODEL: FuelModelFields = {
+  fuelPower: 2.3, fuelMultiplier: 0.011, optimalMass: 280, baseMass: 211.69,
+  tankSize: 16, internalTankSize: 0.39, maxFuelPerJump: 2, rangeBoost: 0, reserveSize: 0,
+};
+const T6_SHIP: ShipState = {
+  ...SHIP, ship: 'type6', shipName: ' ', cargoCapacity: 50,
+  unladenMass: 211.300003, fuelMain: 16, fuelReserve: 0.39,
+  fsdItem: 'int_hyperdrive_size4_class1',
+};
+const NO_PROFILES: ShipProfilesState = { profiles: [], active: null };
+
+describe('ShipConfig', () => {
+  it('shows the current ship with its derived fuel model prefilled', () => {
+    render(
+      <ShipConfig ship={T6_SHIP} model={T6_MODEL} profiles={NO_PROFILES}
+        onSave={() => {}} onDelete={() => {}} onActivate={() => {}} />
+    );
+    expect(screen.getByTestId('ship-current').textContent).toContain('type6');
+    expect(screen.getByTestId('ship-current').textContent).toContain('int_hyperdrive_size4_class1');
+    expect(screen.getByDisplayValue('280')).toBeTruthy();    // optimal mass from the 4E table
+    expect(screen.getByDisplayValue('211.69')).toBeTruthy(); // unladen + reservoir
+    expect(screen.getByDisplayValue('0.011')).toBeTruthy();  // E-rating multiplier
+    expect(screen.getByDisplayValue('50')).toBeTruthy();     // cargo <- ship.cargoCapacity
+  });
+
+  it('saves the untouched model as a journal profile and an edited one as manual', () => {
+    const saved: ShipProfile[] = [];
+    render(
+      <ShipConfig ship={T6_SHIP} model={T6_MODEL} profiles={NO_PROFILES}
+        onSave={(p) => saved.push(p)} onDelete={() => {}} onActivate={() => {}} />
+    );
+    // Textbox order: [0..8] model fields, [9] cargo, [10] profile name, [11] SLEF textarea, [12] build name.
+    const boxes = screen.getAllByRole('textbox');
+    fireEvent.change(boxes[10], { target: { value: 'Type-6 hauler' } });
+    fireEvent.click(screen.getByText('SAVE PROFILE'));
+    expect(saved[0]).toMatchObject({ name: 'Type-6 hauler', source: 'journal', cargo: 50, model: T6_MODEL });
+    fireEvent.change(boxes[2], { target: { value: '392' } }); // optimal mass tweak -> manual
+    fireEvent.change(boxes[10], { target: { value: 'Tuned' } });
+    fireEvent.click(screen.getByText('SAVE PROFILE'));
+    expect(saved[1]).toMatchObject({ name: 'Tuned', source: 'manual', model: { ...T6_MODEL, optimalMass: 392 } });
+  });
+
+  it('lists profiles with the active one highlighted and activates/deletes', () => {
+    let activated: string | null = 'unset';
+    let deleted = '';
+    const profiles: ShipProfilesState = {
+      profiles: [
+        { name: 'Type-6 hauler', source: 'journal', model: T6_MODEL, cargo: 50 },
+        { name: 'Exploraconda', source: 'build', shipBuild: '{}' },
+      ],
+      active: 'Type-6 hauler',
+    };
+    render(
+      <ShipConfig ship={T6_SHIP} model={T6_MODEL} profiles={profiles}
+        onSave={() => {}} onDelete={(n) => (deleted = n)} onActivate={(n) => (activated = n)} />
+    );
+    expect(screen.getByTestId('profile-Type-6 hauler').className).toContain('hop-active');
+    fireEvent.click(within(screen.getByTestId('profile-Exploraconda')).getByText('Activate'));
+    expect(activated).toBe('Exploraconda');
+    fireEvent.click(within(screen.getByTestId('profile-Type-6 hauler')).getByText('Deactivate'));
+    expect(activated).toBeNull();
+    fireEvent.click(within(screen.getByTestId('profile-Exploraconda')).getByText('Delete'));
+    expect(deleted).toBe('Exploraconda');
+  });
+
+  it('rejects a save when any fuel-model field is blank', () => {
+    const saved: ShipProfile[] = [];
+    render(
+      <ShipConfig ship={T6_SHIP} model={T6_MODEL} profiles={NO_PROFILES}
+        onSave={(p) => saved.push(p)} onDelete={() => {}} onActivate={() => {}} />
+    );
+    const boxes = screen.getAllByRole('textbox');
+    fireEvent.change(boxes[10], { target: { value: 'Half-filled' } });
+    fireEvent.change(boxes[1], { target: { value: '' } }); // clear fuel multiplier
+    fireEvent.click(screen.getByText('SAVE PROFILE'));
+    expect(screen.getByText(/Every fuel-model field needs a number/)).toBeTruthy();
+    expect(saved).toHaveLength(0);
+  });
+
+  it('saves a pasted SLEF build as a build profile and rejects non-JSON', () => {
+    const saved: ShipProfile[] = [];
+    render(
+      <ShipConfig ship={T6_SHIP} model={T6_MODEL} profiles={NO_PROFILES}
+        onSave={(p) => saved.push(p)} onDelete={() => {}} onActivate={() => {}} />
+    );
+    const boxes = screen.getAllByRole('textbox');
+    fireEvent.change(boxes[11], { target: { value: 'not json' } });
+    fireEvent.change(boxes[12], { target: { value: 'Broken' } });
+    fireEvent.click(screen.getByText('SAVE BUILD PROFILE'));
+    expect(screen.getByText(/does not parse as JSON/)).toBeTruthy();
+    expect(saved).toHaveLength(0);
+    const SLEF = '{"$schema":"https://coriolis.io/schemas/ship-loadout/4.json#","ship":"Anaconda"}';
+    fireEvent.change(boxes[11], { target: { value: SLEF } });
+    fireEvent.change(boxes[12], { target: { value: 'Exploraconda' } });
+    fireEvent.click(screen.getByText('SAVE BUILD PROFILE'));
+    expect(saved[0]).toEqual({ name: 'Exploraconda', source: 'build', shipBuild: SLEF });
+  });
+});
+
+describe('GalaxyPlotter ship prefill (v1.9)', () => {
+  it('prefills the fuel model from the journal-derived model', async () => {
+    let seen: PlotGalaxyRequest | null = null;
+    render(
+      <GalaxyPlotter ship={SHIP} route={null} shipModel={T6_MODEL} activeProfile={null}
+        onPlot={async (req) => { seen = req; return { ok: true, result: GROUTE }; }}
+        onStart={() => {}} onClear={() => {}} onAnchor={() => {}} />
+    );
+    expect(screen.getByDisplayValue('280')).toBeTruthy(); // not the 1050 Asp default
+    fireEvent.change(screen.getAllByRole('textbox')[1], { target: { value: 'Lave' } });
+    fireEvent.click(screen.getByText('PLOT ROUTE'));
+    expect(await screen.findByText(/replaces any other active travel route/)).toBeTruthy();
+    expect(seen).toMatchObject({
+      fuelPower: 2.3, fuelMultiplier: 0.011, optimalMass: 280, baseMass: 211.69,
+      tankSize: 16, internalTankSize: 0.39, maxFuelPerJump: 2, rangeBoost: 0, reserveSize: 0,
+      cargo: 96, // still ship.cargoUsed — no profile active
+    });
+    expect((seen as unknown as PlotGalaxyRequest).shipBuild).toBeUndefined();
+  });
+
+  it('prefers the active profile model and cargo over the journal', async () => {
+    let seen: PlotGalaxyRequest | null = null;
+    const profile: ShipProfile = {
+      name: 'Big hauler', source: 'manual',
+      model: { ...T6_MODEL, optimalMass: 1800, tankSize: 64 }, cargo: 720,
+    };
+    render(
+      <GalaxyPlotter ship={SHIP} route={null} shipModel={T6_MODEL} activeProfile={profile}
+        onPlot={async (req) => { seen = req; return { ok: true, result: GROUTE }; }}
+        onStart={() => {}} onClear={() => {}} onAnchor={() => {}} />
+    );
+    expect(screen.getByDisplayValue('1800')).toBeTruthy();
+    expect(screen.getByDisplayValue('720')).toBeTruthy(); // profile cargo beats ship.cargoUsed 96
+    fireEvent.change(screen.getAllByRole('textbox')[1], { target: { value: 'Lave' } });
+    fireEvent.click(screen.getByText('PLOT ROUTE'));
+    expect(await screen.findByText(/replaces any other active travel route/)).toBeTruthy();
+    expect(seen).toMatchObject({ optimalMass: 1800, tankSize: 64, cargo: 720 });
+  });
+
+  it('refreshes edited fuel fields when the active profile switches', () => {
+    const profileA: ShipProfile = { name: 'A', source: 'manual', model: T6_MODEL };
+    const profileB: ShipProfile = {
+      name: 'B', source: 'manual', model: { ...T6_MODEL, optimalMass: 1800 },
+    };
+    const { rerender } = render(
+      <GalaxyPlotter ship={SHIP} route={null} shipModel={T6_MODEL} activeProfile={profileA}
+        onPlot={async () => ({ ok: true, result: GROUTE })}
+        onStart={() => {}} onClear={() => {}} onAnchor={() => {}} />
+    );
+    // Edit optimal mass (280 -> 999): prefills stop for this profile...
+    fireEvent.change(screen.getByDisplayValue('280'), { target: { value: '999' } });
+    expect(screen.getByDisplayValue('999')).toBeTruthy();
+    // ...but switching profiles re-applies the new profile's model.
+    rerender(
+      <GalaxyPlotter ship={SHIP} route={null} shipModel={T6_MODEL} activeProfile={profileB}
+        onPlot={async () => ({ ok: true, result: GROUTE })}
+        onStart={() => {}} onClear={() => {}} onAnchor={() => {}} />
+    );
+    expect(screen.getByDisplayValue('1800')).toBeTruthy();
+    expect(screen.queryByDisplayValue('999')).toBeNull();
+  });
+
+  it('locks the fields and sends ship_build when the active profile is a pasted build', async () => {
+    let seen: PlotGalaxyRequest | null = null;
+    const SLEF = '{"$schema":"https://coriolis.io/schemas/ship-loadout/4.json#","ship":"Anaconda"}';
+    const profile: ShipProfile = { name: 'Exploraconda', source: 'build', shipBuild: SLEF };
+    render(
+      <GalaxyPlotter ship={SHIP} route={null} shipModel={T6_MODEL} activeProfile={profile}
+        onPlot={async (req) => { seen = req; return { ok: true, result: GROUTE }; }}
+        onStart={() => {}} onClear={() => {}} onAnchor={() => {}} />
+    );
+    expect(screen.getByTestId('gp-build-note').textContent).toContain('Using pasted build');
+    expect((screen.getByDisplayValue('280') as HTMLInputElement).disabled).toBe(true);
+    fireEvent.change(screen.getAllByRole('textbox')[1], { target: { value: 'Lave' } });
+    fireEvent.click(screen.getByText('PLOT ROUTE'));
+    expect(await screen.findByText(/replaces any other active travel route/)).toBeTruthy();
+    // Numeric model still sent alongside ship_build (findings doc: the site always sends both).
+    expect(seen).toMatchObject({ shipBuild: SLEF, fuelPower: 2.3, optimalMass: 280 });
   });
 });

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { ShipState, TradeRoute } from '@edhelper/engine';
-import type { ActiveRoute, ActiveNeutronRoute, ActiveExplorationRoute, ActiveFleetCarrierRoute, ActiveTouristRoute, ActiveGalaxyRoute, ActiveColonisationRoute, DataHealth, NeutronRoute, ExplorationRoute, FleetCarrierRoute, TouristRoute, GalaxyRoute, ColonisationRoute } from '../../shared/ipc-types';
+import type { ActiveRoute, ActiveNeutronRoute, ActiveExplorationRoute, ActiveFleetCarrierRoute, ActiveTouristRoute, ActiveGalaxyRoute, ActiveColonisationRoute, DataHealth, NeutronRoute, ExplorationRoute, FleetCarrierRoute, TouristRoute, GalaxyRoute, ColonisationRoute, FuelModelFields, ShipProfilesState } from '../../shared/ipc-types';
 import { api } from './api';
 import { CockpitPanel } from './components/CockpitPanel';
 import { TradePlanner } from './components/TradePlanner';
@@ -10,6 +10,7 @@ import { FleetCarrierRouter } from './components/FleetCarrierRouter';
 import { TouristPlanner } from './components/TouristPlanner';
 import { GalaxyPlotter } from './components/GalaxyPlotter';
 import { ColonisationPlotter } from './components/ColonisationPlotter';
+import { ShipConfig } from './components/ShipConfig';
 import { SystemDistances } from './components/SystemDistances';
 import { CommunityGoals } from './components/CommunityGoals';
 import { DataHealthFooter } from './components/DataHealthFooter';
@@ -23,7 +24,9 @@ export function App() {
   const [tourist, setTourist] = useState<ActiveTouristRoute | null>(null);
   const [galaxy, setGalaxy] = useState<ActiveGalaxyRoute | null>(null);
   const [colonisation, setColonisation] = useState<ActiveColonisationRoute | null>(null);
-  const [tool, setTool] = useState<'trade' | 'neutron' | 'exploration' | 'carrier' | 'tourist' | 'distances' | 'cg' | 'galaxy' | 'colonisation'>('trade');
+  const [shipModel, setShipModel] = useState<FuelModelFields | null>(null);
+  const [profiles, setProfiles] = useState<ShipProfilesState>({ profiles: [], active: null });
+  const [tool, setTool] = useState<'trade' | 'neutron' | 'exploration' | 'carrier' | 'tourist' | 'distances' | 'cg' | 'galaxy' | 'colonisation' | 'ship'>('trade');
   const [health, setHealth] = useState<DataHealth | null>(null);
 
   useEffect(() => {
@@ -35,8 +38,13 @@ export function App() {
     void api.getTouristRoute().then(setTourist);
     void api.getGalaxyRoute().then(setGalaxy);
     void api.getColonisationRoute().then(setColonisation);
+    void api.getShipModel().then(setShipModel);
+    void api.getShipProfiles().then(setProfiles);
     void api.getDataHealth().then(setHealth);
-    const un1 = api.onShipState(setShip);
+    const un1 = api.onShipState((s) => {
+      setShip(s);
+      void api.getShipModel().then(setShipModel);
+    });
     const un2 = api.onRouteUpdated(setRoute);
     const un5 = api.onNeutronUpdated(setNeutron);
     const un6 = api.onExplorationUpdated(setExploration);
@@ -61,6 +69,8 @@ export function App() {
       clearInterval(t);
     };
   }, []);
+
+  const activeProfile = profiles.profiles.find((p) => p.name === profiles.active) ?? null;
 
   return (
     <div className="app-grid">
@@ -93,6 +103,9 @@ export function App() {
           </button>
           <button className={`tool-tab ${tool === 'colonisation' ? 'active' : ''}`} onClick={() => setTool('colonisation')}>
             COLONISATION
+          </button>
+          <button className={`tool-tab ${tool === 'ship' ? 'active' : ''}`} onClick={() => setTool('ship')}>
+            SHIP
           </button>
         </div>
         {tool === 'trade' ? (
@@ -144,6 +157,8 @@ export function App() {
           <GalaxyPlotter
             ship={ship}
             route={galaxy}
+            shipModel={shipModel}
+            activeProfile={activeProfile}
             onPlot={(req) => api.plotGalaxy(req)}
             onStart={(r: GalaxyRoute) => void api.startGalaxyRoute(r)}
             onClear={() => void api.clearGalaxyRoute()}
@@ -157,6 +172,15 @@ export function App() {
             onStart={(r: ColonisationRoute) => void api.startColonisationRoute(r)}
             onClear={() => void api.clearColonisationRoute()}
             onAnchor={(i) => void api.anchorColonisationRoute(i)}
+          />
+        ) : tool === 'ship' ? (
+          <ShipConfig
+            ship={ship}
+            model={shipModel}
+            profiles={profiles}
+            onSave={(p) => void api.saveShipProfile(p).then(setProfiles)}
+            onDelete={(n) => void api.deleteShipProfile(n).then(setProfiles)}
+            onActivate={(n) => void api.activateShipProfile(n).then(setProfiles)}
           />
         ) : tool === 'distances' ? (
           <SystemDistances ship={ship} onCompute={(req) => api.computeDistances(req)} />

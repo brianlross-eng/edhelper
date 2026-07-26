@@ -283,6 +283,10 @@ export interface PlotGalaxyRequest {
   maxFuelPerJump: number;
   rangeBoost: number;
   reserveSize: number;
+  /** Raw SLEF build JSON from a 'build' profile — sent verbatim as ship_build ALONGSIDE
+   *  the numeric fields (the Spansh site always sends both; see the findings doc's
+   *  "Galaxy plotter routes" section). Omitted when absent (probe-confirmed optional). */
+  shipBuild?: string;
 }
 
 export interface GalaxyWaypoint {
@@ -371,6 +375,40 @@ export type CommunityGoalsResponse =
   | { ok: true; result: CommunityGoal[] }
   | { ok: false; error: string };
 
+/** ------- Ship configure (v1.9) ------- */
+/** Spansh's 9-field FSD fuel model (same keys the Galaxy Plotter submits). */
+export interface FuelModelFields {
+  fuelPower: number;
+  fuelMultiplier: number;
+  optimalMass: number;
+  /** Unladen mass + reservoir (findings doc: base_mass definition). */
+  baseMass: number;
+  tankSize: number;
+  /** Reservoir size (Spansh's internal_tank_size). */
+  internalTankSize: number;
+  maxFuelPerJump: number;
+  /** Guardian booster ly bonus (0 when none). */
+  rangeBoost: number;
+  /** User "fuel reserve" input — always 0 when auto-derived. */
+  reserveSize: number;
+}
+
+export type ShipProfileSource = 'journal' | 'build' | 'manual';
+
+export interface ShipProfile {
+  name: string;
+  source: ShipProfileSource;
+  model?: FuelModelFields;
+  /** Raw SLEF (Coriolis/EDSY) build JSON, sent verbatim as ship_build. */
+  shipBuild?: string;
+  cargo?: number;
+}
+
+export interface ShipProfilesState {
+  profiles: ShipProfile[];
+  active: string | null;
+}
+
 /** ------- Renderer-facing API (window.edhelper) ------- */
 export interface EdhelperApi {
   getShipState(): Promise<ShipState>;
@@ -423,4 +461,9 @@ export interface EdhelperApi {
   getColonisationRoute(): Promise<ActiveColonisationRoute | null>;
   anchorColonisationRoute(index: number): Promise<ActiveColonisationRoute | null>;
   onColonisationUpdated(cb: (r: ActiveColonisationRoute | null) => void): () => void;
+  getShipModel(): Promise<FuelModelFields | null>;
+  getShipProfiles(): Promise<ShipProfilesState>;
+  saveShipProfile(profile: ShipProfile): Promise<ShipProfilesState>;
+  deleteShipProfile(name: string): Promise<ShipProfilesState>;
+  activateShipProfile(name: string | null): Promise<ShipProfilesState>;
 }

@@ -76,4 +76,23 @@ describe('reduceShipState', () => {
     expect(s.docked).toBe(true);
     expect(s.station).toBe('X7F-B2L');
   });
+
+  it('carries ship-model fields through Loadout and overwrites them on the next Loadout', () => {
+    let s = reduceShipState(initialShipState(), {
+      type: 'Loadout', ship: 'type6', cargoCapacity: 50, maxJumpRange: 12.607187,
+      unladenMass: 211.300003, fuelMain: 16, fuelReserve: 0.39,
+      fsdItem: 'int_hyperdrive_size4_class1',
+    });
+    expect(s).toMatchObject({
+      ship: 'type6', padSize: 'M',
+      unladenMass: 211.300003, fuelMain: 16, fuelReserve: 0.39,
+      fsdItem: 'int_hyperdrive_size4_class1',
+    });
+    // Switching ships emits a fresh Loadout; stale FSD facts must NOT survive it.
+    s = reduceShipState(s, { type: 'Loadout', ship: 'sidewinder', cargoCapacity: 4, maxJumpRange: 7.3 });
+    expect(s.ship).toBe('sidewinder');
+    expect(s.fsdItem).toBeUndefined();
+    expect(s.unladenMass).toBeUndefined();
+    expect(s.fuelMain).toBeUndefined();
+  });
 });

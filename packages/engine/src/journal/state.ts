@@ -38,6 +38,12 @@ export function reduceShipState(state: ShipState, ev: JournalEvent): ShipState {
         cargoCapacity: ev.cargoCapacity,
         maxJumpRange: ev.maxJumpRange,
         padSize: PAD_SIZE_BY_SHIP[ev.ship],
+        unladenMass: ev.unladenMass,
+        fuelMain: ev.fuelMain,
+        fuelReserve: ev.fuelReserve,
+        fsdItem: ev.fsdItem,
+        fsdOptimalMass: ev.fsdOptimalMass,
+        guardianBoosterItem: ev.guardianBoosterItem,
       };
     case 'Location':
       return { ...state, system: ev.system, docked: ev.docked, station: ev.docked ? ev.station : undefined };

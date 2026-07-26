@@ -59,4 +59,9 @@ contextBridge.exposeInMainWorld('edhelper', {
   getColonisationRoute: () => ipcRenderer.invoke('colonisation:get'),
   anchorColonisationRoute: (index: number) => ipcRenderer.invoke('colonisation:anchor', index),
   onColonisationUpdated: subscribe('colonisation:updated'),
+  getShipModel: () => ipcRenderer.invoke('ship:model:get'),
+  getShipProfiles: () => ipcRenderer.invoke('ship:profiles:get'),
+  saveShipProfile: (profile: unknown) => ipcRenderer.invoke('ship:profiles:save', profile),
+  deleteShipProfile: (name: string) => ipcRenderer.invoke('ship:profiles:delete', name),
+  activateShipProfile: (name: string | null) => ipcRenderer.invoke('ship:profiles:activate', name),
 });
