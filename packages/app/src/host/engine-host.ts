@@ -18,7 +18,7 @@ import type {
   SystemDistancesRequest,
 } from '../shared/ipc-types.js';
 
-const SOFTWARE = { softwareName: 'EDHelper', softwareVersion: '0.1.0' };
+const SOFTWARE = { softwareName: 'EDHelper', softwareVersion: '1.0.0' };
 
 const spansh = new SpanshClient();
 const uploader = new EddnUploader();

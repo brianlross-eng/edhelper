@@ -5,6 +5,7 @@ import type { JournalEvent, ShipState, TradeRoute } from '@edhelper/engine';
 import { EngineClient } from './engine-client.js';
 import { RouteTracker } from './route-tracker.js';
 import { NeutronTracker } from './neutron-tracker.js';
+import { engineSpawnSpec } from './engine-spawn.js';
 import { WaypointTracker } from './waypoint-tracker.js';
 import { activateProfile, deleteProfile, loadSettings, sanitizeProfile, saveSettings, upsertProfile } from './settings.js';
 import { deriveFuelModel } from './ship-model.js';
@@ -56,11 +57,16 @@ function startExclusive<R, A>(tracker: { start(route: R): A; clear(): void }, ro
   return tracker.start(route);
 }
 
-// The engine host runs under plain Node (native deps use the system ABI, not Electron's).
-const engine = new EngineClient({
-  command: process.env.EDHELPER_NODE ?? 'node',
-  args: [join(__dirname, 'engine-host.js')],
-});
+// Dev: host runs under plain Node. Packaged: the machine has no Node, so we
+// re-exec the Electron binary with ELECTRON_RUN_AS_NODE=1 (see engine-spawn.ts).
+const engine = new EngineClient(
+  engineSpawnSpec({
+    isPackaged: app.isPackaged,
+    execPath: process.execPath,
+    mainDir: __dirname,
+    edhelperNode: process.env.EDHELPER_NODE,
+  })
+);
 
 let win: BrowserWindow | null = null;
 
