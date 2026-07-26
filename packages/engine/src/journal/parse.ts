@@ -18,13 +18,28 @@ export function parseJournalLine(line: string): JournalEvent | null {
         ship: raw.Ship ? String(raw.Ship).toLowerCase() : undefined,
         shipName: raw.ShipName,
       };
-    case 'Loadout':
+    case 'Loadout': {
+      const modules: any[] = Array.isArray(raw.Modules) ? raw.Modules : [];
+      const fsd = modules.find((m) => m?.Slot === 'FrameShiftDrive');
+      const optModifier = fsd?.Engineering?.Modifiers?.find?.(
+        (mod: any) => mod?.Label === 'FSDOptimalMass'
+      );
+      const booster = modules.find((m) =>
+        String(m?.Item ?? '').toLowerCase().startsWith('int_guardianfsdbooster_')
+      );
       return {
         type: 'Loadout',
         ship: String(raw.Ship ?? '').toLowerCase(),
         cargoCapacity: raw.CargoCapacity ?? 0,
         maxJumpRange: raw.MaxJumpRange ?? 0,
+        unladenMass: typeof raw.UnladenMass === 'number' ? raw.UnladenMass : undefined,
+        fuelMain: typeof raw.FuelCapacity?.Main === 'number' ? raw.FuelCapacity.Main : undefined,
+        fuelReserve: typeof raw.FuelCapacity?.Reserve === 'number' ? raw.FuelCapacity.Reserve : undefined,
+        fsdItem: fsd?.Item ? String(fsd.Item).toLowerCase() : undefined,
+        fsdOptimalMass: typeof optModifier?.Value === 'number' ? optModifier.Value : undefined,
+        guardianBoosterItem: booster?.Item ? String(booster.Item).toLowerCase() : undefined,
       };
+    }
     case 'Location':
       return {
         type: 'Location',

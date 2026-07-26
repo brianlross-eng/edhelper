@@ -12,11 +12,32 @@ export interface ShipState {
   system?: string;
   station?: string;
   docked: boolean;
+  /** v1.9 ship-model facts from Loadout (all absent until a Loadout is seen). */
+  unladenMass?: number;
+  fuelMain?: number;
+  fuelReserve?: number;
+  /** Raw FSD module id, lowercased, e.g. "int_hyperdrive_size4_class1". */
+  fsdItem?: string;
+  /** Engineered FSDOptimalMass modifier value, when the FSD is engineered. */
+  fsdOptimalMass?: number;
+  /** Raw guardian booster module id, e.g. "int_guardianfsdbooster_size3". */
+  guardianBoosterItem?: string;
 }
 
 export type JournalEvent =
   | { type: 'LoadGame'; commander: string; credits: number; ship?: string; shipName?: string }
-  | { type: 'Loadout'; ship: string; cargoCapacity: number; maxJumpRange: number }
+  | {
+      type: 'Loadout';
+      ship: string;
+      cargoCapacity: number;
+      maxJumpRange: number;
+      unladenMass?: number;
+      fuelMain?: number;
+      fuelReserve?: number;
+      fsdItem?: string;
+      fsdOptimalMass?: number;
+      guardianBoosterItem?: string;
+    }
   | { type: 'Location'; system: string; docked: boolean; station?: string }
   | { type: 'FSDJump'; system: string }
   | { type: 'CarrierJump'; system: string }

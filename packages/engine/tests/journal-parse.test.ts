@@ -66,3 +66,86 @@ describe('parseJournalLine', () => {
     expect(ev).toEqual({ type: 'CarrierJump', system: 'Gandharvi' });
   });
 });
+
+/**
+ * REAL Loadout from Journal.2026-07-26T025024.01.log (the commander's Type-6).
+ * Modules[] trimmed from the original 23 entries to PowerPlant + FSD + FuelTank —
+ * the untrimmed fields are verbatim. The stock 4E FSD has no Engineering block.
+ */
+const REAL_LOADOUT = JSON.stringify({
+  timestamp: '2026-07-26T06:53:16Z',
+  event: 'Loadout',
+  Ship: 'type6',
+  ShipID: 2,
+  ShipName: ' ',
+  ShipIdent: 'GO-22T',
+  HullValue: 1045945,
+  ModulesValue: 740655,
+  HullHealth: 1.0,
+  UnladenMass: 211.300003,
+  CargoCapacity: 50,
+  MaxJumpRange: 12.607187,
+  FuelCapacity: { Main: 16.0, Reserve: 0.39 },
+  Rebuy: 89330,
+  Modules: [
+    { Slot: 'PowerPlant', Item: 'int_powerplant_size3_class4', On: true, Priority: 1, Health: 1.0, Value: 160137 },
+    { Slot: 'FrameShiftDrive', Item: 'int_hyperdrive_size4_class1', On: true, Priority: 2, Health: 1.0 },
+    { Slot: 'FuelTank', Item: 'int_fueltank_size4_class3', On: true, Priority: 1, Health: 1.0 },
+  ],
+});
+
+describe('parseJournalLine Loadout ship-model fields (v1.9)', () => {
+  it('extracts masses, fuel, and the FSD from the real Type-6 Loadout (journal 2026-07-26)', () => {
+    const ev = parseJournalLine(REAL_LOADOUT);
+    expect(ev).toMatchObject({
+      type: 'Loadout',
+      ship: 'type6',
+      cargoCapacity: 50,
+      maxJumpRange: 12.607187,
+      unladenMass: 211.300003,
+      fuelMain: 16,
+      fuelReserve: 0.39,
+      fsdItem: 'int_hyperdrive_size4_class1',
+    });
+    expect((ev as any).fsdOptimalMass).toBeUndefined();
+    expect((ev as any).guardianBoosterItem).toBeUndefined();
+  });
+
+  it('extracts an engineered FSDOptimalMass and a guardian booster (TitleCase ids normalized)', () => {
+    const line = JSON.stringify({
+      timestamp: 't', event: 'Loadout', Ship: 'asp', CargoCapacity: 32, MaxJumpRange: 51.7,
+      UnladenMass: 316.0, FuelCapacity: { Main: 32.0, Reserve: 0.63 },
+      Modules: [
+        {
+          Slot: 'FrameShiftDrive', Item: 'Int_Hyperdrive_Size5_Class5', On: true, Priority: 0, Health: 1.0,
+          Engineering: {
+            Engineer: 'Felicity Farseer', BlueprintName: 'FSD_LongRange', Level: 5, Quality: 1.0,
+            Modifiers: [
+              { Label: 'Mass', Value: 26.0, OriginalValue: 20.0 },
+              { Label: 'Integrity', Value: 93.5, OriginalValue: 110.0 },
+              { Label: 'PowerDraw', Value: 0.69, OriginalValue: 0.6 },
+              { Label: 'FSDOptimalMass', Value: 1627.5, OriginalValue: 1050.0 },
+            ],
+          },
+        },
+        { Slot: 'Slot06_Size3', Item: 'Int_GuardianFSDBooster_Size3', On: true, Priority: 0, Health: 1.0 },
+      ],
+    });
+    expect(parseJournalLine(line)).toMatchObject({
+      type: 'Loadout',
+      fsdItem: 'int_hyperdrive_size5_class5',
+      fsdOptimalMass: 1627.5,
+      guardianBoosterItem: 'int_guardianfsdbooster_size3',
+    });
+  });
+
+  it('leaves the new fields undefined when Modules and FuelCapacity are absent', () => {
+    expect(
+      parseJournalLine('{"timestamp":"t","event":"Loadout","Ship":"pythonmkii","CargoCapacity":192,"MaxJumpRange":28.4}')
+    ).toEqual({
+      type: 'Loadout', ship: 'pythonmkii', cargoCapacity: 192, maxJumpRange: 28.4,
+      unladenMass: undefined, fuelMain: undefined, fuelReserve: undefined,
+      fsdItem: undefined, fsdOptimalMass: undefined, guardianBoosterItem: undefined,
+    });
+  });
+});
