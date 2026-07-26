@@ -1,0 +1,30 @@
+appId: com.gumswampsoftware.edhelper
+productName: ED Helper
+directories:
+  output: release
+  buildResources: build
+# Everything the app needs at runtime is bundled by electron-vite into out/ —
+# the package ships ZERO node_modules. better-sqlite3/zeromq stay dev-machine
+# concerns (see the plan's probe facts), so never collect or rebuild deps.
+files:
+  - out/**
+  - package.json
+  - "!node_modules/**"
+asar: true
+npmRebuild: false
+nodeGypRebuild: false
+win:
+  icon: build/icon.ico
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  artifactName: ED-Helper-Setup-${version}.${ext}
+portable:
+  artifactName: ED-Helper-Portable-${version}.${ext}

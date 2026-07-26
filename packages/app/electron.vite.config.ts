@@ -12,6 +12,12 @@ export default defineConfig({
           index: resolve(__dirname, 'src/main/index.ts'),
           'engine-host': resolve(__dirname, 'src/host/engine-host.ts'),
         },
+        // The engine barrel re-exports better-sqlite3/zeromq modules the app
+        // never uses. Without this, Rollup keeps bare side-effect requires of
+        // those externals in out/main/index.js — fatal in a packaged app that
+        // ships no node_modules. Verified: with this line the bundle contains
+        // zero references to better-sqlite3/zeromq/bindings.
+        treeshake: { moduleSideEffects: 'no-external' },
       },
     },
   },
