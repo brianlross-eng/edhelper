@@ -2,11 +2,16 @@ import { useEffect, useState } from 'react';
 import type { ShipState } from '@edhelper/engine';
 import type {
   ActiveGalaxyRoute, GalaxyRoute, PlotGalaxyRequest, PlotGalaxyResponse,
+  FuelModelFields, ShipProfile,
 } from '../../../shared/ipc-types';
 
 export interface GalaxyPlotterProps {
   ship: ShipState | null;
   route: ActiveGalaxyRoute | null;
+  /** Journal-derived fuel model — prefill when no profile is active (null = use the probe defaults). */
+  shipModel: FuelModelFields | null;
+  /** Active ship profile — its model prefills the fields; a 'build' profile locks them and sends ship_build. */
+  activeProfile: ShipProfile | null;
   onPlot: (req: PlotGalaxyRequest) => Promise<PlotGalaxyResponse>;
   onStart: (route: GalaxyRoute) => void;
   onClear: () => void;
@@ -33,6 +38,10 @@ const FUEL_FIELDS = [
 
 type FuelKey = (typeof FUEL_FIELDS)[number]['key'];
 
+function fieldsFromModel(m: FuelModelFields): Record<FuelKey, string> {
+  return Object.fromEntries(FUEL_FIELDS.map((f) => [f.key, String(m[f.key])])) as Record<FuelKey, string>;
+}
+
 function badges(wp: GalaxyRoute['waypoints'][number]) {
   return (
     <>
@@ -44,7 +53,9 @@ function badges(wp: GalaxyRoute['waypoints'][number]) {
   );
 }
 
-export function GalaxyPlotter({ ship, route, onPlot, onStart, onClear, onAnchor }: GalaxyPlotterProps) {
+export function GalaxyPlotter({ ship, route, shipModel, activeProfile, onPlot, onStart, onClear, onAnchor }: GalaxyPlotterProps) {
+  const prefillModel = activeProfile?.model ?? shipModel;
+  const buildMode = activeProfile?.source === 'build' && activeProfile.shipBuild !== undefined;
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [algorithm, setAlgorithm] = useState<string>('optimistic');
@@ -52,12 +63,26 @@ export function GalaxyPlotter({ ship, route, onPlot, onStart, onClear, onAnchor 
   const [useSupercharge, setUseSupercharge] = useState(true);
   const [useInjections, setUseInjections] = useState(false);
   const [refuelScoopable, setRefuelScoopable] = useState(true);
-  const [fuel, setFuel] = useState<Record<FuelKey, string>>(
-    () => Object.fromEntries(FUEL_FIELDS.map((f) => [f.key, f.def])) as Record<FuelKey, string>
+  const [fuel, setFuel] = useState<Record<FuelKey, string>>(() =>
+    prefillModel
+      ? fieldsFromModel(prefillModel)
+      : (Object.fromEntries(FUEL_FIELDS.map((f) => [f.key, f.def])) as Record<FuelKey, string>)
   );
+  const [fuelTouched, setFuelTouched] = useState(false);
   const [result, setResult] = useState<GalaxyRoute | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!fuelTouched && prefillModel) setFuel(fieldsFromModel(prefillModel));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- prefillModel is derived from these two
+  }, [fuelTouched, activeProfile, shipModel]);
+
+  // Declared BEFORE the ship effect on purpose: both guard on cargo === '', and
+  // effect order decides the winner at mount — profile cargo beats ship.cargoUsed.
+  useEffect(() => {
+    if (activeProfile?.cargo !== undefined) setCargo((v) => (v === '' ? String(activeProfile.cargo) : v));
+  }, [activeProfile]);
 
   useEffect(() => {
     if (!ship) return;
@@ -88,6 +113,7 @@ export function GalaxyPlotter({ ship, route, onPlot, onStart, onClear, onAnchor 
       rangeBoost: num('rangeBoost'),
       reserveSize: num('reserveSize'),
     };
+    if (buildMode && activeProfile?.shipBuild) req.shipBuild = activeProfile.shipBuild;
     if (!req.from || !req.to) {
       setError('Enter both a start and a destination system.');
       setBusy(false);
@@ -176,11 +202,23 @@ export function GalaxyPlotter({ ship, route, onPlot, onStart, onClear, onAnchor 
         </label>
       </div>
       <div className="label" style={{ marginTop: 10 }}>FSD FUEL MODEL — range derives from these (no jump-range input)</div>
+      {buildMode && (
+        <div className="muted" data-testid="gp-build-note">
+          Using pasted build "{activeProfile!.name}" — Spansh reads the ship from ship_build; the fields below are locked.
+        </div>
+      )}
       <div className="form-grid">
         {FUEL_FIELDS.map((f) => (
           <div key={f.key} className="field">
             <label>{f.label}</label>
-            <input value={fuel[f.key]} onChange={(e) => setFuel((m) => ({ ...m, [f.key]: e.target.value }))} />
+            <input
+              value={fuel[f.key]}
+              disabled={buildMode}
+              onChange={(e) => {
+                setFuelTouched(true);
+                setFuel((m) => ({ ...m, [f.key]: e.target.value }));
+              }}
+            />
           </div>
         ))}
       </div>
