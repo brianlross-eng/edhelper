@@ -735,6 +735,20 @@ describe('ShipConfig', () => {
     expect(deleted).toBe('Exploraconda');
   });
 
+  it('rejects a save when any fuel-model field is blank', () => {
+    const saved: ShipProfile[] = [];
+    render(
+      <ShipConfig ship={T6_SHIP} model={T6_MODEL} profiles={NO_PROFILES}
+        onSave={(p) => saved.push(p)} onDelete={() => {}} onActivate={() => {}} />
+    );
+    const boxes = screen.getAllByRole('textbox');
+    fireEvent.change(boxes[10], { target: { value: 'Half-filled' } });
+    fireEvent.change(boxes[1], { target: { value: '' } }); // clear fuel multiplier
+    fireEvent.click(screen.getByText('SAVE PROFILE'));
+    expect(screen.getByText(/Every fuel-model field needs a number/)).toBeTruthy();
+    expect(saved).toHaveLength(0);
+  });
+
   it('saves a pasted SLEF build as a build profile and rejects non-JSON', () => {
     const saved: ShipProfile[] = [];
     render(
@@ -792,6 +806,29 @@ describe('GalaxyPlotter ship prefill (v1.9)', () => {
     fireEvent.click(screen.getByText('PLOT ROUTE'));
     expect(await screen.findByText(/replaces any other active travel route/)).toBeTruthy();
     expect(seen).toMatchObject({ optimalMass: 1800, tankSize: 64, cargo: 720 });
+  });
+
+  it('refreshes edited fuel fields when the active profile switches', () => {
+    const profileA: ShipProfile = { name: 'A', source: 'manual', model: T6_MODEL };
+    const profileB: ShipProfile = {
+      name: 'B', source: 'manual', model: { ...T6_MODEL, optimalMass: 1800 },
+    };
+    const { rerender } = render(
+      <GalaxyPlotter ship={SHIP} route={null} shipModel={T6_MODEL} activeProfile={profileA}
+        onPlot={async () => ({ ok: true, result: GROUTE })}
+        onStart={() => {}} onClear={() => {}} onAnchor={() => {}} />
+    );
+    // Edit optimal mass (280 -> 999): prefills stop for this profile...
+    fireEvent.change(screen.getByDisplayValue('280'), { target: { value: '999' } });
+    expect(screen.getByDisplayValue('999')).toBeTruthy();
+    // ...but switching profiles re-applies the new profile's model.
+    rerender(
+      <GalaxyPlotter ship={SHIP} route={null} shipModel={T6_MODEL} activeProfile={profileB}
+        onPlot={async () => ({ ok: true, result: GROUTE })}
+        onStart={() => {}} onClear={() => {}} onAnchor={() => {}} />
+    );
+    expect(screen.getByDisplayValue('1800')).toBeTruthy();
+    expect(screen.queryByDisplayValue('999')).toBeNull();
   });
 
   it('locks the fields and sends ship_build when the active profile is a pasted build', async () => {

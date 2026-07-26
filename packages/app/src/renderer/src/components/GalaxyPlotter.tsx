@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ShipState } from '@edhelper/engine';
 import type {
   ActiveGalaxyRoute, GalaxyRoute, PlotGalaxyRequest, PlotGalaxyResponse,
@@ -72,6 +72,16 @@ export function GalaxyPlotter({ ship, route, shipModel, activeProfile, onPlot, o
   const [result, setResult] = useState<GalaxyRoute | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Switching profiles forgets user edits so the new profile's model prefills again.
+  const profileKey = activeProfile?.name ?? null;
+  const seenProfileKey = useRef(profileKey);
+  useEffect(() => {
+    if (seenProfileKey.current !== profileKey) {
+      seenProfileKey.current = profileKey;
+      setFuelTouched(false);
+    }
+  }, [profileKey]);
 
   useEffect(() => {
     if (!fuelTouched && prefillModel) setFuel(fieldsFromModel(prefillModel));

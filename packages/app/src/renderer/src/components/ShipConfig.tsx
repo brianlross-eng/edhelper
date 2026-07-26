@@ -57,7 +57,7 @@ export function ShipConfig({ ship, model, profiles, onSave, onDelete, onActivate
       return;
     }
     const values = MODEL_FIELDS.map((f) => Number(fields[f.key]));
-    if (values.some((v) => !Number.isFinite(v)) || fields.optimalMass.trim() === '') {
+    if (MODEL_FIELDS.some((f) => fields[f.key].trim() === '') || values.some((v) => !Number.isFinite(v))) {
       setError('Every fuel-model field needs a number.');
       return;
     }
@@ -123,7 +123,7 @@ export function ShipConfig({ ship, model, profiles, onSave, onDelete, onActivate
         </div>
         <div className="field">
           <label>Profile name</label>
-          <input value={name} onChange={(e) => setName(e.target.value.trim())} />
+          <input value={name} onChange={(e) => setName(e.target.value)} />
         </div>
       </div>
       <div className="checks">
@@ -159,7 +159,7 @@ export function ShipConfig({ ship, model, profiles, onSave, onDelete, onActivate
       <div className="form-grid">
         <div className="field">
           <label>Build profile name</label>
-          <input value={slefName} onChange={(e) => setSlefName(e.target.value.trim())} />
+          <input value={slefName} onChange={(e) => setSlefName(e.target.value)} />
         </div>
       </div>
       <div className="checks">
