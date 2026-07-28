@@ -7,6 +7,7 @@ import { RouteTracker } from './route-tracker.js';
 import { NeutronTracker } from './neutron-tracker.js';
 import { engineSpawnSpec } from './engine-spawn.js';
 import { WaypointTracker } from './waypoint-tracker.js';
+import { wireAutoUpdate } from './updater.js';
 import { activateProfile, deleteProfile, loadSettings, sanitizeProfile, saveSettings, upsertProfile } from './settings.js';
 import { deriveFuelModel } from './ship-model.js';
 import type {
@@ -299,6 +300,7 @@ app.whenReady().then(() => {
   });
 
   createWindow();
+  wireAutoUpdate().catch((err) => console.error('[updater] init failed:', err));
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });

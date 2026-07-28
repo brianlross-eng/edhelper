@@ -4,8 +4,11 @@ import { resolve } from 'node:path';
 
 export default defineConfig({
   main: {
-    // Bundle the engine's TS source into the main/host chunks; keep native deps external.
-    plugins: [externalizeDepsPlugin({ exclude: ['@edhelper/engine'] })],
+    // Bundle the engine's TS source into the main/host chunks; keep native deps
+    // external. electron-updater is excluded too: the package ships zero
+    // node_modules (see electron-builder.yml files allowlist), so the updater
+    // and its transitive deps must be bundled into out/main.
+    plugins: [externalizeDepsPlugin({ exclude: ['@edhelper/engine', 'electron-updater'] })],
     build: {
       rollupOptions: {
         input: {
