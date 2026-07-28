@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { PadSize, ShipState, TradeRoute } from '@edhelper/engine';
 import type { ActiveRoute, PlotTradeRequest, PlotTradeResponse, PlotTradeResult } from '../../../shared/ipc-types';
-import { RouteChecklist } from './RouteChecklist';
+import { PadWarning, RouteChecklist, hasPadAnnotations, padBadge } from './RouteChecklist';
 
 export interface TradePlannerProps {
   ship: ShipState | null;
@@ -138,11 +138,13 @@ export function TradePlanner({ ship, route, onPlot, onStart, onClear }: TradePla
             <div className="muted">No profitable route found with these constraints.</div>
           ) : (
             <>
+              <PadWarning hops={result.route.hops} />
               {result.route.hops.map((hop, i) => (
                 <div key={i} className="hop" data-testid={`plan-hop-${i}`}>
                   <span className="hop-marker">{i + 1}</span>
                   <span>
                     {hop.fromSystem}/{hop.fromStation} → {hop.toSystem}/{hop.toStation}
+                    {padBadge(hop, hasPadAnnotations(result.route.hops))}
                   </span>
                   <span className="muted">
                     {hop.units}t {hop.commodity} @ {hop.buyPrice.toLocaleString()} → {hop.sellPrice.toLocaleString()}

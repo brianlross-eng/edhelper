@@ -120,6 +120,54 @@ describe('TradePlanner', () => {
   });
 });
 
+// v1.11: route with one fit, one no-fit, one unknown pad annotation.
+const PAD_ROUTE: ActiveRoute = {
+  currentHop: 0,
+  hopStatus: ['active', 'pending', 'pending'],
+  expectedProfit: 180_000,
+  actualProfit: 0,
+  route: {
+    totalProfit: 180_000, totalDistanceLy: 30,
+    hops: [
+      { fromStationId: 1, toStationId: 2, fromSystem: 'Sol', fromStation: 'Alpha', toSystem: 'LHS 20', toStation: 'Beta', commodity: 'gold', units: 100, buyPrice: 9000, sellPrice: 10000, profit: 100_000, distanceLy: 10, padFit: true, pads: { small: 2, medium: 8, large: 4 } },
+      { fromStationId: 2, toStationId: 3, fromSystem: 'LHS 20', fromStation: 'Beta', toSystem: 'Wolf', toStation: 'Gamma Dock', commodity: 'tea', units: 100, buyPrice: 1300, sellPrice: 1800, profit: 50_000, distanceLy: 10, padFit: false, pads: { small: 4, medium: 0, large: 0 } },
+      { fromStationId: 3, toStationId: 4, fromSystem: 'Wolf', fromStation: 'Gamma Dock', toSystem: 'Ross 154', toStation: 'Delta', commodity: 'silver', units: 60, buyPrice: 4000, sellPrice: 4500, profit: 30_000, distanceLy: 10 },
+    ],
+  },
+};
+
+describe('TradePlanner pad verification (v1.11)', () => {
+  it('shows NO M PAD / PAD? badges and a warning banner in the plan preview', async () => {
+    render(
+      <TradePlanner ship={SHIP} route={null}
+        onPlot={async () => ({ ok: true, result: { route: PAD_ROUTE.route, etaMinutes: 12 } })}
+        onStart={() => {}} onClear={() => {}} />
+    );
+    fireEvent.click(screen.getByText('PLOT ROUTE'));
+    await screen.findByTestId('plan-hop-0');
+    expect(screen.getByTestId('plan-hop-0').textContent).not.toContain('PAD');
+    expect(screen.getByTestId('plan-hop-1').textContent).toContain('NO M PAD');
+    expect(screen.getByTestId('plan-hop-2').textContent).toContain('PAD?');
+    expect(screen.getByTestId('pad-warning').textContent).toContain('1 stop(s) have no Medium pad');
+    expect(screen.getByTestId('pad-warning').textContent).toContain('pad size Large');
+  });
+
+  it('shows badges and the warning banner on the active checklist', () => {
+    render(<RouteChecklist route={PAD_ROUTE} onClear={() => {}} />);
+    expect(screen.getByTestId('hop-0').textContent).not.toContain('PAD');
+    expect(screen.getByTestId('hop-1').textContent).toContain('NO M PAD');
+    expect(screen.getByTestId('hop-2').textContent).toContain('PAD?');
+    expect(screen.getByTestId('pad-warning').textContent).toContain('1 stop(s)');
+  });
+
+  it('renders zero pad badges and no banner on an unannotated (S/L) route', () => {
+    render(<RouteChecklist route={ROUTE} onClear={() => {}} />);
+    expect(screen.queryByTestId('pad-warning')).toBeNull();
+    expect(screen.queryByText(/NO M PAD/)).toBeNull();
+    expect(screen.queryByText(/PAD\?/)).toBeNull();
+  });
+});
+
 const HEALTH_OK = {
   spansh: { reachable: true, lastSuccessAt: '2026-07-24T05:00:00Z', lastError: null },
   eddn: { enabled: true, sent: 42, dropped: 1, queued: 0 },
