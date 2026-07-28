@@ -127,6 +127,65 @@ export class SpanshClient {
   }
 
   async plotTrade(req: PlotTradeRequest): Promise<PlotTradeResult> {
+    const first = await this.runTradePlot(req, req.padSize === 'L');
+    // v1.11: the trade API's only pad lever is binary requires_large_pad, so
+    // Medium-pad plots (sent with requires_large_pad=0) get NO server-side pad
+    // filtering and need client-side post-verification. S always fits and L is
+    // already server-guaranteed via requires_large_pad=1 — no lookups for either.
+    if (req.padSize !== 'M') return first.result;
+    await this.annotateMediumPadFit(first.result.route.hops, first.rawHops);
+    const rejectedStops = first.result.route.hops.filter((h) => h.padFit === false).length;
+    if (rejectedStops === 0) return first.result;
+
+    /*
+     * v1.13 M-pad recovery chain — never return a route with unusable stops
+     * (the trade API has no station-exclusion or medium filter, probe-verified,
+     * so recovery = re-plot or truncate, never patch):
+     *  (1) Re-plot the SAME request with requires_large_pad=1. Smaller ships land
+     *      on bigger pads, so the result is server-GUARANTEED dockable for an
+     *      M-pad ship — deliberately NO pad verification on the retry. Returned
+     *      marked { rejectedStops, mode: 'large-pad' } where rejectedStops is the
+     *      padFit === false count on the ORIGINAL route.
+     *  (2) If the retry throws or yields 0 hops: truncate the ORIGINAL route at
+     *      the first padFit === false destination; if at least one hop remains,
+     *      return it with totals + etaMinutes recomputed for the kept hops,
+     *      marked mode: 'truncated'.
+     *  (3) If truncation leaves 0 hops (the very first destination was
+     *      undockable): throw — there is nothing usable to show.
+     */
+    try {
+      const retry = await this.runTradePlot(req, true);
+      if (retry.result.route.hops.length > 0) {
+        return { ...retry.result, padAdjusted: { rejectedStops, mode: 'large-pad' } };
+      }
+    } catch {
+      // Retry plot failed — fall through to truncation of the original route.
+    }
+    const firstBad = first.result.route.hops.findIndex((h) => h.padFit === false);
+    const kept = first.result.route.hops.slice(0, firstBad);
+    if (kept.length === 0) {
+      throw new Error(
+        'No dockable route found for your Medium pad — try more capital, more hops, or a different start station.'
+      );
+    }
+    return {
+      route: {
+        hops: kept,
+        totalProfit: kept.reduce((s, h) => s + h.profit, 0),
+        totalDistanceLy: kept.reduce((s, h) => s + h.distanceLy, 0),
+      },
+      etaMinutes: estimateMinutes(kept, req.shipJumpRange),
+      padAdjusted: { rejectedStops, mode: 'truncated' },
+    };
+  }
+
+  /** Submit one trade-route job, poll it to completion, and map the hops — the
+   *  shared core of plotTrade's initial plot and its v1.13 large-pad recovery
+   *  re-plot (which flips `requiresLargePad` on regardless of req.padSize). */
+  private async runTradePlot(
+    req: PlotTradeRequest,
+    requiresLargePad: boolean
+  ): Promise<{ result: PlotTradeResult; rawHops: any[] }> {
     // Field names verified against the live API in Task 2 (see the DECLARED SHAPE comment
     // above): `starting_capital`/`max_cargo`, not `capital`/`cargo` — those alternates are
     // silently ignored by Spansh and yield an empty result instead of a 4xx. `max_price_age`
@@ -140,7 +199,7 @@ export class SpanshClient {
       max_cargo: String(req.cargoCapacity),
       max_system_distance: '1000',
       max_price_age: String((req.maxDataAgeDays ?? 30) * 86400),
-      requires_large_pad: req.padSize === 'L' ? '1' : '0',
+      requires_large_pad: requiresLargePad ? '1' : '0',
       allow_planetary: req.allowSurface ? '1' : '0',
       allow_prohibited: '0',
       allow_player_owned: req.allowCarriers ? '1' : '0',
@@ -160,15 +219,7 @@ export class SpanshClient {
       const result = await this.request(`/results/${job}`, { method: 'GET' });
       if (result.state === 'completed' || Array.isArray(result.result)) {
         const rawHops = result.result ?? [];
-        const mapped = this.mapResult(rawHops, req);
-        // v1.11: the trade API's only pad lever is binary requires_large_pad, so
-        // Medium-pad plots (sent with requires_large_pad=0) get NO server-side pad
-        // filtering and need client-side post-verification. S always fits and L is
-        // already server-guaranteed via requires_large_pad=1 — no lookups for either.
-        if (req.padSize === 'M') {
-          await this.annotateMediumPadFit(mapped.route.hops, rawHops);
-        }
-        return mapped;
+        return { result: this.mapResult(rawHops, req), rawHops };
       }
       await new Promise((r) => setTimeout(r, this.pollMs));
     }

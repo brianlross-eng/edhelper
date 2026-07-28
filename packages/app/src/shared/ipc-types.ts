@@ -26,6 +26,11 @@ export interface PlotTradeRequest {
 export interface PlotTradeResult {
   route: TradeRoute;
   etaMinutes: number;
+  /** v1.13: present when the M-pad recovery chain altered the returned route —
+   *  `large-pad` = re-plotted with requires_large_pad=1, `truncated` = original
+   *  route cut at the first undockable destination. rejectedStops counts the
+   *  padFit === false hops found on the ORIGINAL plot. */
+  padAdjusted?: { rejectedStops: number; mode: 'large-pad' | 'truncated' };
 }
 
 export type PlotTradeResponse =
