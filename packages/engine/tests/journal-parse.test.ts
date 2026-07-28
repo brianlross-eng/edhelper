@@ -94,6 +94,50 @@ const REAL_LOADOUT = JSON.stringify({
   ],
 });
 
+/**
+ * REAL Cargo event from Journal.2026-07-28T005625.01.log, byte-identical to the
+ * commander's live Cargo.json (probed 2026-07-28) — the hold carries 50t of
+ * CMM Composite. Cargo.json in the journal dir has this exact same event shape:
+ *   { "timestamp":"2026-07-28T04:58:14Z", "event":"Cargo", "Vessel":"Ship",
+ *     "Count":50, "Inventory":[ { "Name":"cmmcomposite",
+ *     "Name_Localised":"CMM Composite", "Count":50, "Stolen":0 } ] }
+ * Later Cargo events omit Inventory entirely (real shape from the 2026-07-26
+ * log): { "timestamp":"...", "event":"Cargo", "Vessel":"Ship", "Count":18 }
+ */
+const REAL_CARGO =
+  '{ "timestamp":"2026-07-28T04:58:14Z", "event":"Cargo", "Vessel":"Ship", "Count":50, "Inventory":[ { "Name":"cmmcomposite", "Name_Localised":"CMM Composite", "Count":50, "Stolen":0 } ] }';
+
+describe('parseJournalLine Cargo inventory (v1.14)', () => {
+  it('parses the real Cargo event, preferring Name_Localised over lowercased Name', () => {
+    expect(parseJournalLine(REAL_CARGO)).toEqual({
+      type: 'Cargo',
+      count: 50,
+      inventory: [{ name: 'CMM Composite', count: 50 }],
+    });
+    // No Name_Localised -> fall back to Name, lowercased.
+    expect(
+      parseJournalLine(
+        '{"timestamp":"t","event":"Cargo","Vessel":"Ship","Count":32,"Inventory":[{"Name":"Silver","Count":32,"Stolen":0}]}'
+      )
+    ).toEqual({ type: 'Cargo', count: 32, inventory: [{ name: 'silver', count: 32 }] });
+    // Count-only events (the common later shape) carry no inventory field.
+    expect(parseJournalLine('{"timestamp":"t","event":"Cargo","Vessel":"Ship","Count":18}')).toEqual({
+      type: 'Cargo', count: 18,
+    });
+  });
+
+  it('skips zero-count inventory entries but keeps an empty Inventory array as []', () => {
+    expect(
+      parseJournalLine(
+        '{"timestamp":"t","event":"Cargo","Vessel":"Ship","Count":10,"Inventory":[{"Name":"gold","Count":10,"Stolen":0},{"Name":"tea","Count":0,"Stolen":0}]}'
+      )
+    ).toEqual({ type: 'Cargo', count: 10, inventory: [{ name: 'gold', count: 10 }] });
+    expect(
+      parseJournalLine('{"timestamp":"t","event":"Cargo","Vessel":"Ship","Count":0,"Inventory":[]}')
+    ).toEqual({ type: 'Cargo', count: 0, inventory: [] });
+  });
+});
+
 describe('parseJournalLine Loadout ship-model fields (v1.9)', () => {
   it('extracts masses, fuel, and the FSD from the real Type-6 Loadout (journal 2026-07-26)', () => {
     const ev = parseJournalLine(REAL_LOADOUT);

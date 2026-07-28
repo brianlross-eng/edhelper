@@ -57,8 +57,16 @@ export function reduceShipState(state: ShipState, ev: JournalEvent): ShipState {
       return { ...state, system: ev.system, docked: true, station: ev.station };
     case 'Undocked':
       return { ...state, docked: false, station: undefined };
-    case 'Cargo':
-      return { ...state, cargoUsed: ev.count };
+    case 'Cargo': {
+      if (ev.inventory !== undefined) {
+        return { ...state, cargoUsed: ev.count, cargoInventory: ev.inventory };
+      }
+      // Count-only event: the previous breakdown is trustworthy only while it
+      // still sums to the reported count — otherwise it is stale, so clear it.
+      const prev = state.cargoInventory;
+      const keep = prev !== undefined && prev.reduce((sum, i) => sum + i.count, 0) === ev.count;
+      return { ...state, cargoUsed: ev.count, cargoInventory: keep ? prev : undefined };
+    }
     case 'MarketBuy':
       return { ...state, credits: state.credits !== undefined ? state.credits - ev.totalCost : undefined };
     case 'MarketSell':

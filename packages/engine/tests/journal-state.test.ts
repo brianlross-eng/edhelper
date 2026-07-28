@@ -95,4 +95,26 @@ describe('reduceShipState', () => {
     expect(s.unladenMass).toBeUndefined();
     expect(s.fuelMain).toBeUndefined();
   });
+
+  it('sets cargoInventory from a Cargo event that carries inventory (v1.14)', () => {
+    const s = reduceShipState(initialShipState(), {
+      type: 'Cargo', count: 50, inventory: [{ name: 'CMM Composite', count: 50 }],
+    });
+    expect(s.cargoUsed).toBe(50);
+    expect(s.cargoInventory).toEqual([{ name: 'CMM Composite', count: 50 }]);
+  });
+
+  it('stale-guards cargoInventory on count-only Cargo events (v1.14)', () => {
+    let s = reduceShipState(initialShipState(), {
+      type: 'Cargo', count: 50, inventory: [{ name: 'silver', count: 32 }, { name: 'gold', count: 18 }],
+    });
+    // Count-only event whose count still matches the summed inventory: keep it.
+    s = reduceShipState(s, { type: 'Cargo', count: 50 });
+    expect(s.cargoUsed).toBe(50);
+    expect(s.cargoInventory).toEqual([{ name: 'silver', count: 32 }, { name: 'gold', count: 18 }]);
+    // Count changed without a breakdown: the old inventory is stale — clear it.
+    s = reduceShipState(s, { type: 'Cargo', count: 42 });
+    expect(s.cargoUsed).toBe(42);
+    expect(s.cargoInventory).toBeUndefined();
+  });
 });

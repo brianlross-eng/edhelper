@@ -88,4 +88,38 @@ describe('JournalWatcher', () => {
     expect(raws.map((r) => r.event)).toEqual(['LoadGame', 'Music']);
     expect(raws[0].Commander).toBe('Bross'); // full object, not the parsed subset
   });
+
+  it('synthesizes cargoInventory from Cargo.json when a Cargo event omits Inventory (v1.14)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'edh-journal-'));
+    // Real Cargo.json shape probed 2026-07-28: same object as a full Cargo event.
+    writeFileSync(
+      join(dir, 'Cargo.json'),
+      '{ "timestamp":"2026-07-28T04:58:14Z", "event":"Cargo", "Vessel":"Ship", "Count":50, "Inventory":[ \n' +
+        '{ "Name":"cmmcomposite", "Name_Localised":"CMM Composite", "Count":50, "Stolen":0 }\n ] }'
+    );
+    writeFileSync(
+      join(dir, 'Journal.2026-07-28T010000.01.log'),
+      LOAD + '{"event":"Cargo","Vessel":"Ship","Count":50}\n'
+    );
+    watcher = new JournalWatcher(dir, { pollMs: 50 });
+    await watcher.start();
+    expect(watcher.getState().cargoUsed).toBe(50);
+    expect(watcher.getState().cargoInventory).toEqual([{ name: 'CMM Composite', count: 50 }]);
+  });
+
+  it('skips Cargo.json synthesis when its count disagrees with the event (stale file)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'edh-journal-'));
+    writeFileSync(
+      join(dir, 'Cargo.json'),
+      '{"timestamp":"t","event":"Cargo","Vessel":"Ship","Count":50,"Inventory":[{"Name":"silver","Count":50,"Stolen":0}]}'
+    );
+    writeFileSync(
+      join(dir, 'Journal.2026-07-28T020000.01.log'),
+      LOAD + '{"event":"Cargo","Vessel":"Ship","Count":18}\n'
+    );
+    watcher = new JournalWatcher(dir, { pollMs: 50 });
+    await watcher.start();
+    expect(watcher.getState().cargoUsed).toBe(18);
+    expect(watcher.getState().cargoInventory).toBeUndefined();
+  });
 });

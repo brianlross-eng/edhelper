@@ -105,7 +105,9 @@ describe('TradePlanner', () => {
     );
     expect(screen.getByDisplayValue('Sol')).toBeTruthy();
     expect(screen.getByDisplayValue('Abraham Lincoln')).toBeTruthy();
-    expect(screen.getByDisplayValue('192')).toBeTruthy();
+    // v1.14: SHIP hauls 96t of 192t, so Cargo (t) prefills with FREE space (96),
+    // not full capacity — was '192' before cargo awareness.
+    expect(screen.getByDisplayValue('96')).toBeTruthy();
     expect(screen.getByDisplayValue('7200000')).toBeTruthy();
     expect((screen.getByDisplayValue('Large') as HTMLSelectElement).value).toBe('L');
     // minSupply/minDemand fields removed in v1.1
@@ -117,6 +119,51 @@ describe('TradePlanner', () => {
     );
     expect(screen.queryByDisplayValue('Sol')).toBeNull();
     expect(screen.getByTestId('hop-0')).toBeTruthy();
+  });
+});
+
+describe('cargo inventory awareness (v1.14)', () => {
+  const LOADED: ShipState = {
+    ...SHIP,
+    cargoInventory: [{ name: 'silver', count: 64 }, { name: 'gold', count: 32 }],
+  };
+
+  it('CockpitPanel lists the hold contents under the cargo bar', () => {
+    render(<CockpitPanel ship={LOADED} route={null} neutron={null} exploration={null} carrier={null} tourist={null} galaxy={null} colonisation={null} />);
+    expect(screen.getByTestId('cargo-inventory').textContent).toBe('silver 64 · gold 32');
+  });
+
+  it('CockpitPanel shows no inventory line for an empty hold', () => {
+    render(
+      <CockpitPanel ship={{ ...SHIP, cargoUsed: 0, cargoInventory: [] }} route={null} neutron={null} exploration={null} carrier={null} tourist={null} galaxy={null} colonisation={null} />
+    );
+    expect(screen.queryByTestId('cargo-inventory')).toBeNull();
+  });
+
+  it('TradePlanner prefills free space and shows the hold note when cargo is loaded', () => {
+    render(
+      <TradePlanner ship={LOADED} route={null} onPlot={async () => ({ ok: false, error: 'x' })} onStart={() => {}} onClear={() => {}} />
+    );
+    expect(screen.getByDisplayValue('96')).toBeTruthy(); // 192 capacity - 96 used
+    expect(screen.getByTestId('cargo-note').textContent).toBe(
+      'Hold: silver 64 · gold 32 — planning with free space (96t). Edit Cargo (t) to override.'
+    );
+    // Without an inventory breakdown the note falls back to "Nt loaded".
+    cleanup();
+    render(
+      <TradePlanner ship={SHIP} route={null} onPlot={async () => ({ ok: false, error: 'x' })} onStart={() => {}} onClear={() => {}} />
+    );
+    expect(screen.getByTestId('cargo-note').textContent).toBe(
+      'Hold: 96t loaded — planning with free space (96t). Edit Cargo (t) to override.'
+    );
+  });
+
+  it('TradePlanner prefills full capacity with no note when the hold is empty', () => {
+    render(
+      <TradePlanner ship={{ ...SHIP, cargoUsed: 0 }} route={null} onPlot={async () => ({ ok: false, error: 'x' })} onStart={() => {}} onClear={() => {}} />
+    );
+    expect(screen.getByDisplayValue('192')).toBeTruthy();
+    expect(screen.queryByTestId('cargo-note')).toBeNull();
   });
 });
 

@@ -23,6 +23,11 @@ export function CockpitPanel({ ship, route, neutron, exploration, carrier, touri
         {ship?.cargoCapacity ? `${ship.cargoUsed ?? 0} / ${ship.cargoCapacity} t` : '—'}
         {ship?.credits !== undefined ? ` · ${ship.credits.toLocaleString()} cr` : ''}
       </div>
+      {ship?.cargoInventory && ship.cargoInventory.length > 0 && (
+        <div className="muted" data-testid="cargo-inventory">
+          {ship.cargoInventory.map((i) => `${i.name} ${i.count}`).join(' · ')}
+        </div>
+      )}
 
       <div className="route-box">
         <div className="label" style={{ marginTop: 0 }}>ACTIVE ROUTE</div>

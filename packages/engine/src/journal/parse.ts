@@ -55,10 +55,22 @@ export function parseJournalLine(line: string): JournalEvent | null {
       return { type: 'Docked', system: raw.StarSystem ?? '', station: raw.StationName ?? '' };
     case 'Undocked':
       return { type: 'Undocked' };
-    case 'Cargo':
+    case 'Cargo': {
       // SRV cargo events would otherwise zero out the ship's hold reading.
       if (raw.Vessel !== undefined && raw.Vessel !== 'Ship') return null;
-      return { type: 'Cargo', count: raw.Count ?? 0 };
+      const ev: JournalEvent = { type: 'Cargo', count: raw.Count ?? 0 };
+      // Inventory appears on the initial Cargo event (and in Cargo.json); later
+      // events are count-only. Prefer the display name, else the raw id lowercased.
+      if (Array.isArray(raw.Inventory)) {
+        ev.inventory = raw.Inventory
+          .filter((i: any) => (i?.Count ?? 0) > 0)
+          .map((i: any) => ({
+            name: i.Name_Localised ? String(i.Name_Localised) : String(i.Name ?? '').toLowerCase(),
+            count: i.Count as number,
+          }));
+      }
+      return ev;
+    }
     case 'MarketBuy':
       return {
         type: 'MarketBuy',
