@@ -1373,3 +1373,20 @@ All 4 requests sub-second, synchronous 200s. No rate-limit headers (same minimal
 | Commodity names: localised display names ("CMM Composite"); internal journal names ("cmmcomposite") silently match nothing (200, count 0) | **Confirmed** live both ways |
 | `market_updated_at` is a string timestamp on station records (unix int on trade hops) | **Confirmed** — normalize client-side |
 | Response `search` echo + `search_reference` GUID extra envelope keys | **New finding** — `search` echo usable as a sanity check |
+
+### Station types (probed 2026-07-28)
+
+`GET /api/stations/field_values/type` → `{min_max: {<type>: count}, values: [...]}`.
+The 15 values, with live counts:
+
+Asteroid base 6446 · Coriolis Starport 39124 · Dockable Planet Station 1 ·
+Dodec Starport 7091 · **Drake-Class Carrier 53497 (the ONLY fleet-carrier type)** ·
+Mega ship 279 · Ocellus Starport 4207 · Orbis Starport 12301 · Outpost 113974 ·
+Planetary Construction Depot 43680 · Planetary Outpost 74859 ·
+Planetary Port 4804 · Settlement 310280 · Space Construction Depot 45364 ·
+Surface Settlement 3
+
+Filterable as `filters.type = { value: [<names>] }` (verified live). ED Helper's
+`DOCKABLE_STATION_TYPES` = all of the above MINUS Drake-Class Carrier; if Spansh
+adds a type later it silently drops out of non-carrier searches, so re-probe this
+endpoint when results look thin.

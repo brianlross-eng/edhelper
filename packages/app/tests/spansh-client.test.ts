@@ -897,6 +897,30 @@ describe('sellCargo (v1.15)', () => {
     };
   }
 
+  // v1.15 amendment: carriers are excluded SERVER-side via a type allowlist.
+  // Without this filter a live sell-price-desc search returned 100/100 fleet
+  // carriers, leaving one usable station — so the filter's presence (and its
+  // absence when the commander opts carriers back in) is pinned here.
+  it('excludes carriers server-side with the station-type allowlist', async () => {
+    const { fn, calls } = fakeFetch(sellRoutes());
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    await client.sellCargo({ ...SREQ, includeCarriers: false });
+
+    const body = JSON.parse(calls.find((c) => c.url.includes('/stations/search'))!.init.body);
+    expect(body.filters.type.value).toContain('Coriolis Starport');
+    expect(body.filters.type.value).toContain('Settlement');
+    expect(body.filters.type.value).not.toContain('Drake-Class Carrier');
+  });
+
+  it('omits the type filter entirely when carriers are opted in', async () => {
+    const { fn, calls } = fakeFetch(sellRoutes());
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    await client.sellCargo({ ...SREQ, includeCarriers: true });
+
+    const body = JSON.parse(calls.find((c) => c.url.includes('/stations/search'))!.init.body);
+    expect(body.filters.type).toBeUndefined();
+  });
+
   it('POSTs the probe-verified body shape and maps the fixture rows in sell-price-desc order', async () => {
     const { fn, calls } = fakeFetch(sellRoutes());
     const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
