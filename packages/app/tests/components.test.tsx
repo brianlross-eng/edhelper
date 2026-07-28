@@ -168,6 +168,36 @@ describe('TradePlanner pad verification (v1.11)', () => {
   });
 });
 
+describe('TradePlanner pad-adjusted notice (v1.13)', () => {
+  async function plotWith(padAdjusted: { rejectedStops: number; mode: 'large-pad' | 'truncated' }) {
+    render(
+      <TradePlanner ship={SHIP} route={null}
+        onPlot={async () => ({ ok: true, result: { route: ROUTE.route, etaMinutes: 12, padAdjusted } })}
+        onStart={() => {}} onClear={() => {}} />
+    );
+    fireEvent.click(screen.getByText('PLOT ROUTE'));
+    return await screen.findByTestId('pad-adjusted');
+  }
+
+  it('renders the large-pad and truncated INFO notice texts', async () => {
+    const largePad = await plotWith({ rejectedStops: 2, mode: 'large-pad' });
+    expect(largePad.textContent).toContain(
+      'ℹ Plotted large-pad stations only — the open plot routed through 2 stop(s) with no Medium pad.'
+    );
+    cleanup();
+    const truncated = await plotWith({ rejectedStops: 1, mode: 'truncated' });
+    expect(truncated.textContent).toContain('ℹ Route shortened: dropped 1 stop(s) with no Medium pad.');
+  });
+
+  it('shows no warning banner when padAdjusted is present with clean hops', async () => {
+    // Recovery guarantees returned hops never carry padFit === false, so the
+    // v1.11 banner (kept as a safety net) must stay silent under the notice.
+    await plotWith({ rejectedStops: 1, mode: 'large-pad' });
+    expect(screen.queryByTestId('pad-warning')).toBeNull();
+    expect(screen.queryByText(/NO M PAD/)).toBeNull();
+  });
+});
+
 const HEALTH_OK = {
   spansh: { reachable: true, lastSuccessAt: '2026-07-24T05:00:00Z', lastError: null },
   eddn: { enabled: true, sent: 42, dropped: 1, queued: 0 },

@@ -3,6 +3,20 @@ import type { PadSize, ShipState, TradeRoute } from '@edhelper/engine';
 import type { ActiveRoute, PlotTradeRequest, PlotTradeResponse, PlotTradeResult } from '../../../shared/ipc-types';
 import { PadWarning, RouteChecklist, hasPadAnnotations, padBadge } from './RouteChecklist';
 
+/** v1.13: muted INFO notice when the host's M-pad recovery altered the route.
+ *  Informational only — the returned route is always fully dockable, so the
+ *  v1.11 PadWarning/badges below stay as a never-firing safety net. */
+function PadAdjustedNotice({ padAdjusted }: { padAdjusted: PlotTradeResult['padAdjusted'] }) {
+  if (!padAdjusted) return null;
+  return (
+    <div className="muted" data-testid="pad-adjusted">
+      {padAdjusted.mode === 'large-pad'
+        ? `ℹ Plotted large-pad stations only — the open plot routed through ${padAdjusted.rejectedStops} stop(s) with no Medium pad.`
+        : `ℹ Route shortened: dropped ${padAdjusted.rejectedStops} stop(s) with no Medium pad.`}
+    </div>
+  );
+}
+
 export interface TradePlannerProps {
   ship: ShipState | null;
   route: ActiveRoute | null;
@@ -138,6 +152,7 @@ export function TradePlanner({ ship, route, onPlot, onStart, onClear }: TradePla
             <div className="muted">No profitable route found with these constraints.</div>
           ) : (
             <>
+              <PadAdjustedNotice padAdjusted={result.padAdjusted} />
               <PadWarning hops={result.route.hops} />
               {result.route.hops.map((hop, i) => (
                 <div key={i} className="hop" data-testid={`plan-hop-${i}`}>

@@ -176,7 +176,10 @@ describe('pad-size verification (v1.11)', () => {
     expect(lookups.some((c) => JSON.parse(c.init.body).filters.name.value === 'Lave Station')).toBe(false);
   });
 
-  it('flags a no-fit destination (Settlement counterexample: S/M/L = 1/0/0)', async () => {
+  it('detects a no-fit destination (Settlement counterexample: S/M/L = 1/0/0) and hands it to recovery', async () => {
+    // v1.13: a padFit === false hop no longer reaches the caller — it triggers the
+    // recovery re-plot (here served by the same fixture job, unannotated on return).
+    // The settlement verdict is observable through padAdjusted.rejectedStops.
     const { fn } = fakeFetch(padRoutes({
       'Boyle Station': [fittingRecord({ name: 'Boyle Station', system_name: 'Pilngalu', market_id: 3230836992 })],
       'Tereshkova Colony': [
@@ -190,10 +193,9 @@ describe('pad-size verification (v1.11)', () => {
     }));
     const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
     const result = await client.plotTrade(REQ);
-    expect(result.route.hops[0].padFit).toBe(true);
-    expect(result.route.hops[1].padFit).toBe(false);
-    expect(result.route.hops[1].pads).toEqual({ small: 1, medium: 0, large: 0 });
-    expect(result.route.hops[2].padFit).toBe(true);
+    expect(result.padAdjusted).toEqual({ rejectedStops: 1, mode: 'large-pad' });
+    // The returned (re-plotted) route never carries a padFit === false hop:
+    expect(result.route.hops.some((h) => h.padFit === false)).toBe(false);
   });
 
   it('leaves padFit undefined when the lookup finds no matching record', async () => {
@@ -273,6 +275,146 @@ describe('pad-size verification (v1.11)', () => {
     expect(result.route.hops.every((h) => h.padFit === true)).toBe(true);
     const lookups = calls.filter((c) => c.url.includes('/stations/search'));
     expect(lookups.length).toBe(2); // B Hub once (cached on revisit) + C Port once
+  });
+});
+
+describe('pad re-plot recovery (v1.13)', () => {
+  function fittingRecord(over: Record<string, any>) {
+    return { ...fixture('station-search-pads.json'), ...over };
+  }
+  function settlementRecord(over: Record<string, any>) {
+    return {
+      name: 'x', system_name: 'x', market_id: 0, type: 'Settlement',
+      has_large_pad: false, small_pads: 1, medium_pads: 0, large_pads: 0,
+      ...over,
+    };
+  }
+
+  /** Two sequential trade jobs: the first submit returns job-orig (served the
+   *  standard 3-hop fixture route), the second returns job-retry (served
+   *  `retryBody`). Station lookups answer from `padDb` by station name. */
+  function recoveryRoutes(padDb: Record<string, any[]>, retryBody: any) {
+    let submits = 0;
+    return {
+      '/trade/route': () => {
+        submits++;
+        return { body: { job: submits === 1 ? 'job-orig' : 'job-retry', status: 'queued' } };
+      },
+      '/results/job-orig': () => ({ body: fixture('trade-route-result.json') }),
+      '/results/job-retry': () => ({ body: retryBody }),
+      '/stations/search': (init?: any) => {
+        const name = String(JSON.parse(init.body).filters?.name?.value ?? '');
+        return { body: { results: padDb[name] ?? [] } };
+      },
+    };
+  }
+
+  // Fixture destinations with the MIDDLE stop (Tereshkova Colony) unusable.
+  const BAD_MIDDLE_DB = {
+    'Boyle Station': [fittingRecord({ name: 'Boyle Station', system_name: 'Pilngalu', market_id: 3230836992 })],
+    'Tereshkova Colony': [
+      settlementRecord({ name: 'Tereshkova Colony', system_name: 'Nandjalato', market_id: 3228623360 }),
+    ],
+    'Beacon Light Of The Avali': [
+      fittingRecord({
+        name: 'Beacon Light Of The Avali', system_name: 'Crucis Sector DB-X b1-6', market_id: 4326908419,
+      }),
+    ],
+  };
+
+  // Same helper shape the cache test uses for hand-built raw hops.
+  const endpoint = (system: string, station: string, marketId: number) => ({
+    system, station, market_id: marketId, system_id64: 1, x: 0, y: 0, z: 0,
+    distance_to_arrival: 100, market_updated_at: '2026-07-27 00:00:00+00',
+  });
+
+  it('re-plots with requires_large_pad=1 and marks the result large-pad (no verification on the retry)', async () => {
+    const retryBody = {
+      state: 'completed', status: 'ok',
+      result: [
+        { source: endpoint('Lave', 'Lave Station', 1), destination: endpoint('Leesti', 'George Lucas', 2),
+          distance: 15,
+          commodities: [{ name: 'gold', amount: 50, profit: 1000,
+            source_commodity: { buy_price: 9000, sell_price: 0, demand: 0, supply: 500 },
+            destination_commodity: { buy_price: 0, sell_price: 10000, demand: 900, supply: 0 },
+            total_profit: 50_000 }],
+          total_profit: 50_000, cumulative_profit: 50_000 },
+        { source: endpoint('Leesti', 'George Lucas', 2), destination: endpoint('Diso', 'Shifnalport', 3),
+          distance: 12,
+          commodities: [{ name: 'tea', amount: 50, profit: 500,
+            source_commodity: { buy_price: 1300, sell_price: 0, demand: 0, supply: 500 },
+            destination_commodity: { buy_price: 0, sell_price: 1800, demand: 900, supply: 0 },
+            total_profit: 25_000 }],
+          total_profit: 25_000, cumulative_profit: 75_000 },
+      ],
+    };
+    const { fn, calls } = fakeFetch(recoveryRoutes(BAD_MIDDLE_DB, retryBody));
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    const result = await client.plotTrade(REQ); // padSize 'M'
+
+    // Two submits: the original M plot, then the recovery re-plot with the SAME
+    // request but requires_large_pad flipped to 1.
+    const submits = calls.filter((c) => c.url.includes('/trade/route'));
+    expect(submits.length).toBe(2);
+    expect(String(submits[0].init.body)).toContain('requires_large_pad=0');
+    const retryForm = new URLSearchParams(String(submits[1].init.body));
+    expect(retryForm.get('requires_large_pad')).toBe('1');
+    expect(retryForm.get('system')).toBe('Lave');
+    expect(retryForm.get('station')).toBe('Lave Station');
+    expect(retryForm.get('starting_capital')).toBe('250000');
+    expect(retryForm.get('max_hops')).toBe('3');
+
+    // Marked large-pad with the ORIGINAL route's rejected-stop count:
+    expect(result.padAdjusted).toEqual({ rejectedStops: 1, mode: 'large-pad' });
+
+    // The retry route is returned as-is: server-guaranteed fit, so NO pad
+    // verification ran on it — zero station lookups after the second submit.
+    expect(result.route.hops).toHaveLength(2);
+    expect(result.route.hops.every((h) => h.padFit === undefined && h.pads === undefined)).toBe(true);
+    expect(result.route.hops[1].toStation).toBe('Shifnalport');
+    expect(result.route.totalProfit).toBe(75_000);
+    const secondSubmitIdx = calls.indexOf(submits[1]);
+    const lookupsAfterRetry = calls.slice(secondSubmitIdx).filter((c) => c.url.includes('/stations/search'));
+    expect(lookupsAfterRetry.length).toBe(0);
+    expect(calls.filter((c) => c.url.includes('/stations/search')).length).toBe(3); // original route only
+  });
+
+  it('truncates the original route at the first bad destination when the retry returns no hops', async () => {
+    const retryBody = { state: 'completed', status: 'ok', result: [] };
+    const { fn, calls } = fakeFetch(recoveryRoutes(BAD_MIDDLE_DB, retryBody));
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    const result = await client.plotTrade(REQ);
+
+    expect(calls.filter((c) => c.url.includes('/trade/route')).length).toBe(2); // retry was attempted
+    expect(result.padAdjusted).toEqual({ rejectedStops: 1, mode: 'truncated' });
+
+    // Only the hop BEFORE the bad middle destination survives, totals recomputed:
+    expect(result.route.hops).toHaveLength(1);
+    const kept = result.route.hops[0];
+    expect(kept.toStation).toBe('Boyle Station');
+    expect(kept.padFit).toBe(true);
+    expect(result.route.totalProfit).toBe(kept.profit);
+    expect(result.route.totalDistanceLy).toBe(kept.distanceLy);
+    // etaMinutes recomputed for the kept hop only (~45s/jump + 5 min dock):
+    const expectedEta = Math.round(
+      Math.max(1, Math.ceil(kept.distanceLy / REQ.shipJumpRange)) * 0.75 + 5
+    );
+    expect(result.etaMinutes).toBe(expectedEta);
+  });
+
+  it('throws the no-dockable-route error when the FIRST destination is bad and the retry returns no hops', async () => {
+    const badFirstDb = {
+      ...BAD_MIDDLE_DB,
+      'Boyle Station': [
+        settlementRecord({ name: 'Boyle Station', system_name: 'Pilngalu', market_id: 3230836992 }),
+      ],
+    };
+    const retryBody = { state: 'completed', status: 'ok', result: [] };
+    const { fn } = fakeFetch(recoveryRoutes(badFirstDb, retryBody));
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    await expect(client.plotTrade(REQ)).rejects.toThrow(
+      'No dockable route found for your Medium pad — try more capital, more hops, or a different start station.'
+    );
   });
 });
 
