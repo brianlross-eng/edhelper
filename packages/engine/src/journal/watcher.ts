@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { closeSync, openSync, readSync, readdirSync, statSync } from 'node:fs';
+import { closeSync, openSync, readFileSync, readSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ShipState } from '../types.js';
 import { parseJournalLine } from './parse.js';
@@ -102,6 +102,17 @@ export class JournalWatcher extends EventEmitter {
         const ev = parseJournalLine(line);
         if (ev) {
           this.state = reduceShipState(this.state, ev);
+          // v1.14 seam: the watcher (not the pure reducer) owns filesystem
+          // access, so it post-processes the reduced state — when a Cargo
+          // event arrives count-only and the reducer's stale-guard dropped
+          // the breakdown, synthesize the inventory from Cargo.json, which
+          // the game rewrites alongside every Cargo event (same shape).
+          if (ev.type === 'Cargo' && ev.inventory === undefined && this.state.cargoInventory === undefined) {
+            const inv = this.readCargoJson();
+            if (inv !== undefined && inv.reduce((sum, i) => sum + i.count, 0) === ev.count) {
+              this.state = { ...this.state, cargoInventory: inv };
+            }
+          }
           this.emit('event', ev);
           changed = true;
         }
@@ -109,6 +120,20 @@ export class JournalWatcher extends EventEmitter {
       if (changed) this.emit('state', this.state);
     } finally {
       closeSync(fd);
+    }
+  }
+
+  /**
+   * Cargo.json holds a full Cargo event object (probed 2026-07-28), so it goes
+   * through the same parser as journal lines. Undefined on any error — a
+   * missing or torn file must never break journal processing.
+   */
+  private readCargoJson(): Array<{ name: string; count: number }> | undefined {
+    try {
+      const ev = parseJournalLine(readFileSync(join(this.dir, 'Cargo.json'), 'utf8'));
+      return ev?.type === 'Cargo' ? ev.inventory : undefined;
+    } catch {
+      return undefined;
     }
   }
 }

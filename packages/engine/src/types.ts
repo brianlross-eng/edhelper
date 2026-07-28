@@ -22,6 +22,8 @@ export interface ShipState {
   fsdOptimalMass?: number;
   /** Raw guardian booster module id, e.g. "int_guardianfsdbooster_size3". */
   guardianBoosterItem?: string;
+  /** v1.14: what the hold carries, from Cargo events / Cargo.json. Display names. */
+  cargoInventory?: Array<{ name: string; count: number }>;
 }
 
 export type JournalEvent =
@@ -43,6 +45,6 @@ export type JournalEvent =
   | { type: 'CarrierJump'; system: string }
   | { type: 'Docked'; system: string; station: string }
   | { type: 'Undocked' }
-  | { type: 'Cargo'; count: number }
+  | { type: 'Cargo'; count: number; inventory?: Array<{ name: string; count: number }> }
   | { type: 'MarketBuy'; commodity: string; count: number; totalCost: number }
   | { type: 'MarketSell'; commodity: string; count: number; totalSale: number };

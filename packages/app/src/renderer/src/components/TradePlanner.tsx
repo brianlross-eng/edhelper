@@ -41,12 +41,21 @@ export function TradePlanner({ ship, route, onPlot, onStart, onClear }: TradePla
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // v1.14: with cargo aboard, plan around the FREE space; a full-capacity plan
+  // would tell the commander to buy more than the hold can take.
+  const cargoUsed = ship?.cargoUsed ?? 0;
+  const freeSpace = ship?.cargoCapacity ? Math.max(0, ship.cargoCapacity - cargoUsed) : 0;
+
   // Pre-fill empty fields from the live ship — the "less data entry" feature.
   useEffect(() => {
     if (!ship) return;
     setFromSystem((v) => (v === '' && ship.system ? ship.system : v));
     setFromStation((v) => (v === '' && ship.station ? ship.station : v));
-    setCargo((v) => (v === '' && ship.cargoCapacity ? String(ship.cargoCapacity) : v));
+    setCargo((v) =>
+      v === '' && ship.cargoCapacity
+        ? String((ship.cargoUsed ?? 0) > 0 ? Math.max(0, ship.cargoCapacity - (ship.cargoUsed ?? 0)) : ship.cargoCapacity)
+        : v
+    );
     setCapital((v) => (v === '' && ship.credits !== undefined ? String(ship.credits) : v));
     if (!padTouched && ship.padSize) setPad(ship.padSize);
   }, [ship, padTouched]);
@@ -132,6 +141,15 @@ export function TradePlanner({ ship, route, onPlot, onStart, onClear }: TradePla
           <input value={maxAge} onChange={(e) => setMaxAge(e.target.value)} placeholder="30" />
         </div>
       </div>
+      {ship && cargoUsed > 0 && ship.cargoCapacity ? (
+        <div className="muted" data-testid="cargo-note">
+          Hold:{' '}
+          {ship.cargoInventory && ship.cargoInventory.length > 0
+            ? ship.cargoInventory.map((i) => `${i.name} ${i.count}`).join(' · ')
+            : `${cargoUsed}t loaded`}{' '}
+          — planning with free space ({freeSpace}t). Edit Cargo (t) to override.
+        </div>
+      ) : null}
       <div className="checks">
         <label>
           <input type="checkbox" checked={surface} onChange={(e) => setSurface(e.target.checked)} /> Surface stations
