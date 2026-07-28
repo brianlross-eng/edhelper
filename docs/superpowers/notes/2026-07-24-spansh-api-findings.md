@@ -1072,3 +1072,122 @@ Sub-second 202 for both jobs; both completed by first poll (~4 s). No rate-limit
 | `incomplete: true` + `reason` partial-route branch on `state: "completed"` | **New envelope variant** — must be checked client-side; absent (not false) on success |
 | `landmark_value` typed `0`-when-none here (vs `null` on riches bodies) | **New quirk** |
 | Pending envelope for these two endpoints | **Not captured** (all three jobs completed by first poll, ~4 s) — assumed same as siblings |
+
+## Pad sizes (probed 2026-07-27)
+
+Probe motivated by the Trade Planner pad bug: our client sends `/api/trade/route` only
+`requires_large_pad` (0/1), so a Medium-pad ship (e.g. Type-6) gets NO pad filtering and can be
+routed to a small-pad-only station. Question: what pad levers does Spansh actually offer?
+Method as before: read the same Ember bundle (`elite-dangerous-gui-7c4a80cdff3416e86822ab0c9abf55fd.js`)
+first, then a handful of live requests (`curl.exe -A "EDHelper-dev/0.1"`, sequential, multi-second gaps).
+
+### 1. Trade form params — `requires_large_pad` is the ONLY pad lever
+
+Re-read `controllers/trade`'s `calculate()` in full. The complete set of fields it ever sends:
+`max_hops`, `max_hop_distance`, `system`, `station`, `starting_capital`, `max_cargo`,
+`max_system_distance`, `max_price_age`, `requires_large_pad`, `allow_prohibited`,
+`allow_planetary`, `allow_player_owned`, `allow_restricted_access`, `unique`, `permit`.
+The one and only pad-related line:
+
+```js
+this.requires_large_pad?t.requires_large_pad=1:t.requires_large_pad=0
+```
+
+There is no `landing_pad_size`, `requires_medium_pad`, `pad_size`, `min_pad_size`, or anything
+similar — confirmed by sweeping the ENTIRE bundle for pad-ish identifiers
+(`grep -oE '[a-z_]*pad[a-z_]*' | sort | uniq -c`):
+
+```
+14 requires_large_pad     (trade + trade-to-system controllers/templates)
+ 6 has_large_pad          (station RECORD field, rendered in body/system/trade-to-system templates)
+ 3 large_pads / 3 medium_pads / 3 small_pads   (station RECORD fields, station-detail template only)
+ 1 requires_large_pad_description
+```
+
+So Spansh's own site cannot express "medium ship" either — its trade tool has the exact same
+blind spot. **No server-side medium-pad param exists.** (Given the silent-ignore behavior
+confirmed twice on this API, inventing a param like `requires_medium_pad=1` would be silently
+dropped, not rejected — do not try to guess one into existence.)
+
+### 2. Trade result hop station objects carry NO pad info
+
+Re-verified live (job `81D22058-8A33-11F1-97D6-EC55B25FF50E`, Lave / Lave Station, `max_hops=1`,
+same params as the recorded fixture otherwise; completed between the ~43 s and ~73 s poll marks —
+slower than the 2026-07-24 run's ~19-20 s, so keep poll budgets generous). Hop `source` and
+`destination` objects have exactly these 9 keys, nothing else:
+
+```
+distance_to_arrival, market_id, market_updated_at, station, system, system_id64, x, y, z
+```
+
+Identical to the recorded `trade-route-result.json` fixture — no `has_large_pad`, no pad counts,
+no station `type`. Any pad verdict on a hop therefore requires a second lookup (see below); the
+`market_id` present on every hop is the natural join key.
+
+### 3. Station search records carry FULL pad data, and pad fields are filterable
+
+`POST /api/stations/search` `{"filters":{"name":{"value":"Abraham Lincoln"}},"size":3}` → 200.
+Full key list of a result record (46 keys):
+
+```
+allegiance, controlling_minor_faction, controlling_minor_faction_influence,
+controlling_minor_faction_state, distance, distance_to_arrival, economies,
+export_commodities, government, has_large_pad, has_market, has_outfitting, has_shipyard,
+id, import_commodities, is_planetary, large_pads, market, market_id, market_updated_at,
+medium_pads, modules, name, outfitting_updated_at, primary_economy,
+prohibited_commodities, services, ships, shipyard_updated_at, small_pads, state,
+system_controlling_power, system_id64, system_is_being_colonised, system_is_colonised,
+system_name, system_population, system_power, system_power_state, system_primary_economy,
+system_secondary_economy, system_x, system_y, system_z, type, updated_at
+```
+
+Pad fields on Abraham Lincoln (type `"Orbis Starport"`): `has_large_pad: true`,
+`large_pads: 5`, `medium_pads: 9`, `small_pads: 8`. There is no `max_landing_pad_size` field —
+the pad story is the boolean plus the three counts. Representative record saved verbatim as
+`packages/app/fixtures/spansh/station-search-pads.json`.
+
+Pad fields ARE accepted as filter clauses (the search UI builds filters generically from record
+field names; no hardcoded filter list exists in `controllers/stations/search` — it only handles
+market-commodity subfilters). Verified live:
+
+- `{"filters":{"type":{"value":["Outpost"]},"medium_pads":{"value":[1,99],"comparison":"<=>"}},"size":2}`
+  → 200, returns Outposts with `medium_pads` ≥ 1 (e.g. Nagel Depot, pads S/M/L = 2/1/0).
+  Numeric range filters use the `{"value":[min,max],"comparison":"<=>"}` shape.
+- `{"filters":{"type":{"value":["Outpost"]},"has_large_pad":{"value":true}},"size":2}`
+  → 200, `count: 0` — the boolean filter is genuinely applied (and confirms Outposts never
+  have a large pad in Spansh's data).
+
+(Usual caveat: `count` is the capped/estimated 10000 on broad filters, as noted in the original
+stations-search section.)
+
+### 4. Explicit pad fields — not station `type` — are the medium-fit discriminator
+
+`type` correlates but is NOT sufficient. Live counterexample: filtering
+`{"type":{"value":["Settlement"]},"has_market":{"value":true}}` returned
+`Rahman Horticultural Estate` (pads S/M/L = 1/0/0 — a Type-6 CANNOT land) and
+`Etienam Metallurgic Facility` (pads S/M/L = 1/0/1, `has_large_pad: true` — a Type-6 CAN land,
+on the L pad) — same `type: "Settlement"`, opposite verdicts. So:
+
+- **Medium-fit test:** `medium_pads > 0 || large_pads > 0` (equivalently
+  `medium_pads > 0 || has_large_pad`), since larger pads accept smaller ships.
+- **Small ships:** fit anywhere (any pad size accepts them) — no filtering needed.
+- **Large ships:** `requires_large_pad=1` server-side already handles this correctly.
+- `type: "Outpost"` reliably implies no L pad (verified: Outpost + `has_large_pad:true` →
+  count 0) but says nothing about whether an M pad exists, and Settlements break any
+  type-based heuristic in both directions. The station-detail template renders the pad counts
+  conditionally (null-guarded), so treat missing/null counts conservatively
+  (`(medium_pads ?? 0) > 0 || (large_pads ?? 0) > 0 || has_large_pad === true`).
+
+### Recommended fix strategy (ranked)
+
+1. ~~Server-side pad param~~ — **does not exist.** `requires_large_pad` is the only pad lever
+   on `/api/trade/route`; nothing else in the bundle, and guessed params get silently dropped.
+2. **Client-side post-verification via `/api/stations/search` (RECOMMENDED for M ships):** plot
+   with `requires_large_pad=0`, then for each hop station look it up (filter by `name` +
+   `system_name`; every hop also carries `market_id` for disambiguation) and check
+   `(medium_pads ?? 0) > 0 || (large_pads ?? 0) > 0 || has_large_pad === true`. Flag/drop hops
+   that fail. Searches are synchronous, sub-second, and a route has few unique stations, so the
+   overhead is a handful of cheap requests (cacheable by `market_id`).
+3. **`requires_large_pad=1` strict mode** as a zero-extra-request fallback/toggle for M ships:
+   guaranteed to fit (L-pad stations accept M ships) but over-restrictive — it excludes ALL
+   Outposts, which are usually fine for a Type-6 (most have an M pad), so route profit suffers.
