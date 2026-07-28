@@ -363,6 +363,43 @@ export interface ActiveColonisationRoute {
   copiedSystem: string | null;
 }
 
+/** ------- Sell cargo (nearby market search, v1.15) ------- */
+export interface SellCargoRequest {
+  /** Display name OR journal name in any casing — canonicalized against Spansh's
+   *  field_values/market list host-side (internal compound names like
+   *  'cmmcomposite' are a hard error, never a silent empty result). */
+  commodity: string;
+  /** Units held — becomes the minimum demand floor of the search. */
+  amount: number;
+  fromSystem: string;
+  radiusLy: number;
+  maxAgeDays: number;
+  includeCarriers: boolean;
+  /** The SHIP's pad size (from ship.padSize, default 'M') — drives per-row padFit. */
+  padSize: PadSize;
+}
+
+export interface SellCargoRow {
+  station: string;
+  system: string;
+  distanceLy: number;
+  sellPrice: number;
+  demand: number;
+  /** Raw Spansh string timestamp, e.g. "2026-07-23 22:05:02+00". */
+  updatedAt: string;
+  padFit: boolean;
+  stationType: string;
+}
+
+export interface SellCargoResult {
+  /** Sell-price-desc, at most 15 after client-side filtering. */
+  rows: SellCargoRow[];
+  /** Results dropped by the staleness / carrier rules (NOT by the 15-row cap). */
+  hidden: number;
+}
+
+export type SellCargoResponse = { ok: true; result: SellCargoResult } | { ok: false; error: string };
+
 /** ------- Community goals (Frontier initiatives API, via the engine host) ------- */
 export interface CommunityGoal {
   title: string;
@@ -460,6 +497,7 @@ export interface EdhelperApi {
   getGalaxyRoute(): Promise<ActiveGalaxyRoute | null>;
   anchorGalaxyRoute(index: number): Promise<ActiveGalaxyRoute | null>;
   onGalaxyUpdated(cb: (r: ActiveGalaxyRoute | null) => void): () => void;
+  searchSellCargo(req: SellCargoRequest): Promise<SellCargoResponse>;
   plotColonisation(req: PlotColonisationRequest): Promise<PlotColonisationResponse>;
   startColonisationRoute(route: ColonisationRoute): Promise<ActiveColonisationRoute>;
   clearColonisationRoute(): Promise<void>;

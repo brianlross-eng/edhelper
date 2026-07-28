@@ -872,3 +872,166 @@ describe('plotColonisation', () => {
     expect(calls.some((c) => c.url.includes('/results/'))).toBe(false);
   });
 });
+
+describe('sellCargo (v1.15)', () => {
+  // Trimmed stand-in for the live 398-entry field_values list (display names only —
+  // internal journal names like 'cmmcomposite' are deliberately NOT in it).
+  const FIELD_VALUES = { values: ['Agri-Medicines', 'CMM Composite', 'Gold'] };
+
+  const SREQ = {
+    commodity: 'CMM Composite',
+    amount: 100,
+    fromSystem: 'Vafthruva',
+    radiusLy: 500,
+    maxAgeDays: 100_000, // effectively no staleness cut unless a test overrides it
+    includeCarriers: true, // every fixture row is a Drake-Class Carrier
+    padSize: 'L' as const,
+  };
+
+  function sellRoutes(searchBody?: any) {
+    return {
+      '/stations/field_values/market': () => ({ body: FIELD_VALUES }),
+      '/stations/search': () => ({
+        body: searchBody ?? fixture('commodity-sell-search.json').response.body,
+      }),
+    };
+  }
+
+  it('POSTs the probe-verified body shape and maps the fixture rows in sell-price-desc order', async () => {
+    const { fn, calls } = fakeFetch(sellRoutes());
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    const res = await client.sellCargo(SREQ);
+
+    const search = calls.find((c) => c.url.includes('/stations/search'))!;
+    const body = JSON.parse(search.init.body);
+    expect(body.filters.market).toEqual([
+      { name: 'CMM Composite', demand: { value: [100, 1_000_000_000], comparison: '<=>' } },
+    ]);
+    expect(body.filters.distance).toEqual({ min: 0, max: 500 }); // plain shape, no comparison key
+    expect(body.reference_system).toBe('Vafthruva');
+    expect(body.sort).toEqual([{ market_sell_price: [{ name: 'CMM Composite', direction: 'desc' }] }]);
+    expect(body.size).toBe(30);
+
+    // All 10 fixture rows survive (carriers included, no staleness cut):
+    expect(res.rows).toHaveLength(10);
+    expect(res.hidden).toBe(0);
+    // Fixture ground truth — top hit T1L-WTG, CMM row 198371 cr / demand 196:
+    expect(res.rows[0]).toMatchObject({
+      station: 'T1L-WTG',
+      system: 'Hyades Sector ND-S c4-15',
+      sellPrice: 198371,
+      demand: 196,
+      updatedAt: '2025-03-03 05:09:22+00',
+      stationType: 'Drake-Class Carrier',
+      padFit: true, // L pad: has_large_pad true, large_pads 8
+    });
+    expect(res.rows[0].distanceLy).toBeCloseTo(209.85, 1);
+    expect(res.rows[1].sellPrice).toBe(119488); // V2W-41X — order preserved as returned
+  });
+
+  it('canonicalizes lowercase display-name input via field_values (cached) and never posts the raw input', async () => {
+    const { fn, calls } = fakeFetch(sellRoutes());
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    await client.sellCargo({ ...SREQ, commodity: 'cmm composite' });
+    const search = calls.find((c) => c.url.includes('/stations/search'))!;
+    const body = JSON.parse(search.init.body);
+    // Posting the raw lowercase input would hit the silent-zero trap (200, count 0):
+    expect(body.filters.market[0].name).toBe('CMM Composite');
+    expect(body.sort[0].market_sell_price[0].name).toBe('CMM Composite');
+    // The list is fetched once per client instance:
+    await client.sellCargo({ ...SREQ, commodity: 'GOLD' });
+    expect(calls.filter((c) => c.url.includes('/field_values/market')).length).toBe(1);
+  });
+
+  it('throws Unknown commodity on a miss — internal compound names are a hard error, not a silent zero', async () => {
+    const { fn, calls } = fakeFetch(sellRoutes());
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    await expect(client.sellCargo({ ...SREQ, commodity: 'cmmcomposite' })).rejects.toThrow(
+      'Unknown commodity: cmmcomposite'
+    );
+    expect(calls.some((c) => c.url.includes('/stations/search'))).toBe(false);
+  });
+
+  it('hides rows whose market_updated_at exceeds maxAgeDays', async () => {
+    const { fn } = fakeFetch(sellRoutes());
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    const res = await client.sellCargo({ ...SREQ, maxAgeDays: 30 });
+    // Expected counts derive from the fixture's own timestamps so this test
+    // stays true as wall-clock time moves past them:
+    const cutoff = Date.now() - 30 * 86_400_000;
+    const raw = fixture('commodity-sell-search.json').response.body.results;
+    const fresh = raw.filter(
+      (r: any) =>
+        Date.parse(String(r.market_updated_at).replace(' ', 'T').replace(/\+00$/, 'Z')) >= cutoff
+    );
+    expect(res.rows.length).toBe(fresh.length);
+    expect(res.hidden).toBe(raw.length - fresh.length);
+    expect(res.hidden).toBeGreaterThan(0); // fixture provably contains year-old rows
+    // The fixture's top hit (2025-03-03, highest price) is permanently stale at 30 days:
+    expect(res.rows.some((r) => r.station === 'T1L-WTG')).toBe(false);
+  });
+
+  it('treats an unparseable market_updated_at as stale', async () => {
+    const raw = fixture('commodity-sell-search.json').response.body;
+    const doctored = { ...raw, results: [{ ...raw.results[2], market_updated_at: 'not-a-timestamp' }] };
+    const { fn } = fakeFetch(sellRoutes(doctored));
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    const res = await client.sellCargo(SREQ);
+    expect(res.rows).toHaveLength(0);
+    expect(res.hidden).toBe(1);
+  });
+
+  it('drops carrier rows unless includeCarriers (fixture: 10/10 type Drake-Class Carrier)', async () => {
+    const { fn } = fakeFetch(sellRoutes());
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    const excluded = await client.sellCargo({ ...SREQ, includeCarriers: false });
+    expect(excluded.rows).toHaveLength(0);
+    expect(excluded.hidden).toBe(10);
+    const included = await client.sellCargo(SREQ);
+    expect(included.rows).toHaveLength(10);
+    expect(included.hidden).toBe(0);
+  });
+
+  it('computes padFit per requested pad size (fixture pads 4/4/8 + doctored no-large stations)', async () => {
+    const raw = fixture('commodity-sell-search.json').response.body;
+    const mediumOnly = {
+      ...raw.results[0], name: 'Medium Only', type: 'Outpost',
+      small_pads: 2, medium_pads: 2, large_pads: 0, has_large_pad: false,
+    };
+    const smallOnly = {
+      ...raw.results[0], name: 'Small Only', type: 'Outpost',
+      small_pads: 2, medium_pads: 0, large_pads: 0, has_large_pad: false,
+    };
+    const doctored = { ...raw, results: [raw.results[0], mediumOnly, smallOnly] };
+    const { fn } = fakeFetch(sellRoutes(doctored));
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+
+    const m = await client.sellCargo({ ...SREQ, padSize: 'M' });
+    expect(m.rows.map((r) => [r.station, r.padFit])).toEqual([
+      ['T1L-WTG', true], // fixture: medium_pads 4
+      ['Medium Only', true],
+      ['Small Only', false], // S/M/L = 2/0/0 — the settlement counterexample shape
+    ]);
+    const l = await client.sellCargo({ ...SREQ, padSize: 'L' });
+    expect(l.rows.map((r) => [r.station, r.padFit])).toEqual([
+      ['T1L-WTG', true], // fixture: has_large_pad true, large_pads 8
+      ['Medium Only', false],
+      ['Small Only', false],
+    ]);
+    const s = await client.sellCargo({ ...SREQ, padSize: 'S' });
+    expect(s.rows.every((r) => r.padFit)).toBe(true);
+  });
+
+  it('caps the returned rows at 15 without counting capped rows as hidden', async () => {
+    const raw = fixture('commodity-sell-search.json').response.body;
+    const doctored = {
+      ...raw,
+      results: [...raw.results, ...raw.results].map((r: any, i: number) => ({ ...r, name: `S${i}` })),
+    };
+    const { fn } = fakeFetch(sellRoutes(doctored));
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    const res = await client.sellCargo(SREQ);
+    expect(res.rows).toHaveLength(15);
+    expect(res.hidden).toBe(0); // the cap is presentation, not a staleness/carrier rule
+  });
+});

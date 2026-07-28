@@ -261,6 +261,13 @@ app.whenReady().then(() => {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
   });
+  ipcMain.handle('sell:search', async (_e, req) => {
+    try {
+      return { ok: true, result: await engine.request('sellCargo', req) };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  });
   ipcMain.handle('cg:list', async () => {
     try {
       return { ok: true, result: await engine.request('communityGoals', undefined) };

@@ -12,6 +12,7 @@ import { GalaxyPlotter } from './components/GalaxyPlotter';
 import { ColonisationPlotter } from './components/ColonisationPlotter';
 import { ShipConfig } from './components/ShipConfig';
 import { SystemDistances } from './components/SystemDistances';
+import { SellCargo } from './components/SellCargo';
 import { CommunityGoals } from './components/CommunityGoals';
 import { DataHealthFooter } from './components/DataHealthFooter';
 
@@ -26,7 +27,7 @@ export function App() {
   const [colonisation, setColonisation] = useState<ActiveColonisationRoute | null>(null);
   const [shipModel, setShipModel] = useState<FuelModelFields | null>(null);
   const [profiles, setProfiles] = useState<ShipProfilesState>({ profiles: [], active: null });
-  const [tool, setTool] = useState<'trade' | 'neutron' | 'exploration' | 'carrier' | 'tourist' | 'distances' | 'cg' | 'galaxy' | 'colonisation' | 'ship'>('trade');
+  const [tool, setTool] = useState<'trade' | 'neutron' | 'exploration' | 'carrier' | 'tourist' | 'distances' | 'cg' | 'galaxy' | 'colonisation' | 'ship' | 'sell'>('trade');
   const [health, setHealth] = useState<DataHealth | null>(null);
 
   useEffect(() => {
@@ -107,6 +108,9 @@ export function App() {
           <button className={`tool-tab ${tool === 'ship' ? 'active' : ''}`} onClick={() => setTool('ship')}>
             SHIP
           </button>
+          <button className={`tool-tab ${tool === 'sell' ? 'active' : ''}`} onClick={() => setTool('sell')}>
+            SELL CARGO
+          </button>
         </div>
         {tool === 'trade' ? (
           <TradePlanner
@@ -182,6 +186,8 @@ export function App() {
             onDelete={(n) => void api.deleteShipProfile(n).then(setProfiles)}
             onActivate={(n) => void api.activateShipProfile(n).then(setProfiles)}
           />
+        ) : tool === 'sell' ? (
+          <SellCargo ship={ship} onSearch={(req) => api.searchSellCargo(req)} />
         ) : tool === 'distances' ? (
           <SystemDistances ship={ship} onCompute={(req) => api.computeDistances(req)} />
         ) : (

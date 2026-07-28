@@ -15,6 +15,7 @@ import type {
   PlotTouristRequest,
   PlotTradeRequest,
   RpcRequest,
+  SellCargoRequest,
   SystemDistancesRequest,
 } from '../shared/ipc-types.js';
 
@@ -86,6 +87,8 @@ async function handle(req: RpcRequest): Promise<unknown> {
       return spansh.plotGalaxy(req.params as PlotGalaxyRequest);
     case 'plotColonisation':
       return spansh.plotColonisation(req.params as PlotColonisationRequest);
+    case 'sellCargo':
+      return spansh.sellCargo(req.params as SellCargoRequest);
     case 'systemDistances':
       return spansh.systemDistances(req.params as SystemDistancesRequest);
     case 'communityGoals':

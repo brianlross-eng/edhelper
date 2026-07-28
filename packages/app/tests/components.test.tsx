@@ -11,6 +11,7 @@ import type {
   ColonisationRoute, ActiveColonisationRoute, PlotColonisationRequest,
   CommunityGoal,
   FuelModelFields, ShipProfile, ShipProfilesState,
+  SellCargoRequest, SellCargoRow,
 } from '../src/shared/ipc-types';
 import { CockpitPanel } from '../src/renderer/src/components/CockpitPanel';
 import { RouteChecklist } from '../src/renderer/src/components/RouteChecklist';
@@ -22,6 +23,7 @@ import { TouristPlanner } from '../src/renderer/src/components/TouristPlanner';
 import { GalaxyPlotter } from '../src/renderer/src/components/GalaxyPlotter';
 import { ColonisationPlotter } from '../src/renderer/src/components/ColonisationPlotter';
 import { SystemDistances } from '../src/renderer/src/components/SystemDistances';
+import { SellCargo } from '../src/renderer/src/components/SellCargo';
 import { CommunityGoals } from '../src/renderer/src/components/CommunityGoals';
 import { DataHealthFooter } from '../src/renderer/src/components/DataHealthFooter';
 import { ShipConfig } from '../src/renderer/src/components/ShipConfig';
@@ -972,5 +974,66 @@ describe('GalaxyPlotter ship prefill (v1.9)', () => {
     expect(await screen.findByText(/replaces any other active travel route/)).toBeTruthy();
     // Numeric model still sent alongside ship_build (findings doc: the site always sends both).
     expect(seen).toMatchObject({ shipBuild: SLEF, fuelPower: 2.3, optimalMass: 280 });
+  });
+});
+
+describe('SellCargo (v1.15)', () => {
+  const CARGO_SHIP: ShipState = {
+    ...SHIP,
+    cargoInventory: [{ name: 'CMM Composite', count: 50 }, { name: 'gold', count: 12 }],
+  };
+  const daysAgo = (d: number) => new Date(Date.now() - d * 86_400_000).toISOString();
+  const ROWS: SellCargoRow[] = [
+    { station: 'Svatek Horizons', system: 'LHS 3447', distanceLy: 12.34, sellPrice: 20_281, demand: 4200, updatedAt: daysAgo(5), padFit: true, stationType: 'Orbis Starport' },
+    { station: 'Tiny Outpost', system: 'Wolf 359', distanceLy: 40.06, sellPrice: 18_000, demand: 900, updatedAt: daysAgo(0), padFit: false, stationType: 'Outpost' },
+  ];
+
+  it('prefills the commodity and amount from the cargo hold and sends v1.15 defaults', async () => {
+    let seen: SellCargoRequest | null = null;
+    render(
+      <SellCargo ship={CARGO_SHIP} onSearch={async (req) => { seen = req; return { ok: true, result: { rows: ROWS, hidden: 0 } }; }} />
+    );
+    expect(screen.getByDisplayValue('CMM Composite')).toBeTruthy();
+    expect(screen.getByDisplayValue('50')).toBeTruthy();
+    fireEvent.click(screen.getByText('SEARCH'));
+    expect(await screen.findByText(/places buying/)).toBeTruthy();
+    expect(seen).toMatchObject({
+      commodity: 'CMM Composite', amount: 50, fromSystem: 'Sol',
+      radiusLy: 100, maxAgeDays: 90, includeCarriers: false, padSize: 'M',
+    });
+  });
+
+  it('renders rows with price, distance and data age plus the best-value line', async () => {
+    render(<SellCargo ship={CARGO_SHIP} onSearch={async () => ({ ok: true, result: { rows: ROWS, hidden: 0 } })} />);
+    fireEvent.click(screen.getByText('SEARCH'));
+    expect(await screen.findByTestId('sell-row-0')).toBeTruthy();
+    const r0 = screen.getByTestId('sell-row-0').textContent ?? '';
+    expect(r0).toContain('Svatek Horizons');
+    expect(r0).toContain('LHS 3447');
+    expect(r0).toContain('12.3 ly');
+    expect(r0).toContain('20,281');
+    expect(r0).toContain('5d old');
+    expect(screen.getByTestId('sell-row-1').textContent).toContain('today');
+    expect(screen.getByTestId('sell-summary').textContent).toContain('2 places buying CMM Composite within 100 ly');
+    // 50 t x best 20,281 cr
+    expect(screen.getByText(/Best: 1,014,050 cr for 50 t at Svatek Horizons/)).toBeTruthy();
+  });
+
+  it('flags stations the ship cannot dock at and notes hidden results', async () => {
+    render(<SellCargo ship={CARGO_SHIP} onSearch={async () => ({ ok: true, result: { rows: ROWS, hidden: 7 } })} />);
+    fireEvent.click(screen.getByText('SEARCH'));
+    expect(await screen.findByTestId('sell-row-1')).toBeTruthy();
+    expect(screen.getByTestId('sell-row-0').textContent).not.toContain('NO M PAD');
+    expect(screen.getByTestId('sell-row-1').textContent).toContain('NO M PAD');
+    expect(screen.getByText(/hid 7 stale or carrier results/)).toBeTruthy();
+  });
+
+  it('shows an empty state and validates a blank commodity', async () => {
+    render(<SellCargo ship={{ ...SHIP, cargoInventory: [] }} onSearch={async () => ({ ok: true, result: { rows: [], hidden: 0 } })} />);
+    fireEvent.click(screen.getByText('SEARCH'));
+    expect(await screen.findByText(/Enter a commodity and amount/)).toBeTruthy();
+    fireEvent.change(screen.getAllByRole('textbox')[0], { target: { value: 'Tritium' } });
+    fireEvent.click(screen.getByText('SEARCH'));
+    expect(await screen.findByText(/No stations buying that within 100 ly/)).toBeTruthy();
   });
 });

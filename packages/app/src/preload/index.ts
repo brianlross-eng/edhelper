@@ -46,6 +46,7 @@ contextBridge.exposeInMainWorld('edhelper', {
   onTouristUpdated: subscribe('tourist:updated'),
   plotExomastery: (req: unknown) => ipcRenderer.invoke('exomastery:plot', req),
   computeDistances: (req: unknown) => ipcRenderer.invoke('distances:compute', req),
+  searchSellCargo: (req: unknown) => ipcRenderer.invoke('sell:search', req),
   getCommunityGoals: () => ipcRenderer.invoke('cg:list'),
   plotGalaxy: (req: unknown) => ipcRenderer.invoke('galaxy:plot', req),
   startGalaxyRoute: (route: unknown) => ipcRenderer.invoke('galaxy:start', route),
