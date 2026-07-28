@@ -111,6 +111,171 @@ describe('SpanshClient', () => {
   });
 });
 
+describe('pad-size verification (v1.11)', () => {
+  // Real record shape from the 2026-07-27 probe (Abraham Lincoln, S/M/L = 8/9/5),
+  // re-labeled per station under test.
+  function fittingRecord(over: Record<string, any>) {
+    return { ...fixture('station-search-pads.json'), ...over };
+  }
+  // Hand-built no-fit record mirroring the probe's live Settlement counterexample
+  // (Rahman Horticultural Estate: S/M/L = 1/0/0, has_large_pad false).
+  function settlementRecord(over: Record<string, any>) {
+    return {
+      name: 'x', system_name: 'x', market_id: 0, type: 'Settlement',
+      has_large_pad: false, small_pads: 1, medium_pads: 0, large_pads: 0,
+      ...over,
+    };
+  }
+
+  // Trade fixture destinations: Boyle Station (Pilngalu, 3230836992),
+  // Tereshkova Colony (Nandjalato, 3228623360),
+  // Beacon Light Of The Avali (Crucis Sector DB-X b1-6, 4326908419).
+  function padRoutes(padDb: Record<string, any[]>) {
+    return {
+      '/trade/route': () => ({ body: fixture('trade-route-submit.json') }),
+      '/results/': () => ({ body: fixture('trade-route-result.json') }),
+      '/stations/search': (init?: any) => {
+        const filters = JSON.parse(init.body).filters;
+        const name = String(filters?.name?.value ?? '');
+        return { body: { results: padDb[name] ?? [] } };
+      },
+    };
+  }
+
+  it('annotates M-pad hop destinations that fit (medium or large pads present)', async () => {
+    const { fn, calls } = fakeFetch(padRoutes({
+      'Boyle Station': [
+        // Decoys first: same name in the wrong system, partial-name match in the right one —
+        // the exact name+system_name match must win.
+        fittingRecord({ name: 'Boyle Station', system_name: 'Elsewhere', market_id: 1 }),
+        settlementRecord({ name: 'Boyle Station Annex', system_name: 'Pilngalu', market_id: 2 }),
+        fittingRecord({ name: 'Boyle Station', system_name: 'Pilngalu', market_id: 3230836992 }),
+      ],
+      'Tereshkova Colony': [
+        fittingRecord({ name: 'Tereshkova Colony', system_name: 'Nandjalato', market_id: 3228623360 }),
+      ],
+      'Beacon Light Of The Avali': [
+        fittingRecord({
+          name: 'Beacon Light Of The Avali', system_name: 'Crucis Sector DB-X b1-6', market_id: 4326908419,
+        }),
+      ],
+    }));
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    const result = await client.plotTrade(REQ); // REQ.padSize === 'M'
+    for (const hop of result.route.hops) {
+      expect(hop.padFit).toBe(true);
+      expect(hop.pads).toEqual({ small: 8, medium: 9, large: 5 });
+    }
+    // Lookups go through /stations/search with name + system_name filters:
+    const lookups = calls.filter((c) => c.url.includes('/stations/search'));
+    expect(lookups.length).toBe(3); // one per unique destination
+    const boyle = lookups.find((c) => JSON.parse(c.init.body).filters.name.value === 'Boyle Station')!;
+    expect(JSON.parse(boyle.init.body).filters.system_name.value).toBe('Pilngalu');
+    expect(JSON.parse(boyle.init.body).size).toBe(10);
+    // The starting station (hop 0's source, where the user is already docked) is never looked up:
+    expect(lookups.some((c) => JSON.parse(c.init.body).filters.name.value === 'Lave Station')).toBe(false);
+  });
+
+  it('flags a no-fit destination (Settlement counterexample: S/M/L = 1/0/0)', async () => {
+    const { fn } = fakeFetch(padRoutes({
+      'Boyle Station': [fittingRecord({ name: 'Boyle Station', system_name: 'Pilngalu', market_id: 3230836992 })],
+      'Tereshkova Colony': [
+        settlementRecord({ name: 'Tereshkova Colony', system_name: 'Nandjalato', market_id: 3228623360 }),
+      ],
+      'Beacon Light Of The Avali': [
+        fittingRecord({
+          name: 'Beacon Light Of The Avali', system_name: 'Crucis Sector DB-X b1-6', market_id: 4326908419,
+        }),
+      ],
+    }));
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    const result = await client.plotTrade(REQ);
+    expect(result.route.hops[0].padFit).toBe(true);
+    expect(result.route.hops[1].padFit).toBe(false);
+    expect(result.route.hops[1].pads).toEqual({ small: 1, medium: 0, large: 0 });
+    expect(result.route.hops[2].padFit).toBe(true);
+  });
+
+  it('leaves padFit undefined when the lookup finds no matching record', async () => {
+    const { fn } = fakeFetch(padRoutes({
+      'Boyle Station': [fittingRecord({ name: 'Boyle Station', system_name: 'Pilngalu', market_id: 3230836992 })],
+      // Tereshkova Colony: no results at all.
+      'Beacon Light Of The Avali': [
+        // Name matches but the system does not — must NOT be treated as a match.
+        fittingRecord({ name: 'Beacon Light Of The Avali', system_name: 'Somewhere Else', market_id: 99 }),
+      ],
+    }));
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    const result = await client.plotTrade(REQ);
+    expect(result.route.hops[0].padFit).toBe(true);
+    expect(result.route.hops[1].padFit).toBeUndefined();
+    expect(result.route.hops[1].pads).toBeUndefined();
+    expect(result.route.hops[2].padFit).toBeUndefined();
+    expect(result.route.hops[2].pads).toBeUndefined();
+  });
+
+  it('makes zero station-search calls for S-pad plots', async () => {
+    const { fn, calls } = fakeFetch({
+      '/trade/route': () => ({ body: fixture('trade-route-submit.json') }),
+      '/results/': () => ({ body: fixture('trade-route-result.json') }),
+    });
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    const result = await client.plotTrade({ ...REQ, padSize: 'S' });
+    expect(calls.filter((c) => c.url.includes('/stations/search')).length).toBe(0);
+    expect(result.route.hops.every((h) => h.padFit === undefined && h.pads === undefined)).toBe(true);
+  });
+
+  it('makes zero station-search calls for L-pad plots (server-guaranteed)', async () => {
+    const { fn, calls } = fakeFetch({
+      '/trade/route': () => ({ body: fixture('trade-route-submit.json') }),
+      '/results/': () => ({ body: fixture('trade-route-result.json') }),
+    });
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    const result = await client.plotTrade({ ...REQ, padSize: 'L' });
+    expect(calls.filter((c) => c.url.includes('/stations/search')).length).toBe(0);
+    expect(result.route.hops.every((h) => h.padFit === undefined && h.pads === undefined)).toBe(true);
+  });
+
+  it('caches lookups per plot: a station revisited as a destination is fetched once', async () => {
+    const endpoint = (system: string, station: string, marketId: number) => ({
+      system, station, market_id: marketId, system_id64: 1, x: 0, y: 0, z: 0,
+      distance_to_arrival: 100, market_updated_at: '2026-07-27 00:00:00+00',
+    });
+    // Destinations: B, C, B — B must be looked up exactly once.
+    const rawResult = {
+      state: 'completed', status: 'ok',
+      result: [
+        { source: endpoint('Alpha', 'Start Dock', 1), destination: endpoint('Beta', 'B Hub', 2),
+          distance: 10, commodities: [], total_profit: 0, cumulative_profit: 0 },
+        { source: endpoint('Beta', 'B Hub', 2), destination: endpoint('Gamma', 'C Port', 3),
+          distance: 12, commodities: [], total_profit: 0, cumulative_profit: 0 },
+        { source: endpoint('Gamma', 'C Port', 3), destination: endpoint('Beta', 'B Hub', 2),
+          distance: 12, commodities: [], total_profit: 0, cumulative_profit: 0 },
+      ],
+    };
+    const { fn, calls } = fakeFetch({
+      '/trade/route': () => ({ body: { job: 'cache-test', status: 'queued' } }),
+      '/results/': () => ({ body: rawResult }),
+      '/stations/search': (init?: any) => {
+        const name = String(JSON.parse(init.body).filters.name.value);
+        const bySystem: Record<string, string> = { 'B Hub': 'Beta', 'C Port': 'Gamma' };
+        const mid: Record<string, number> = { 'B Hub': 2, 'C Port': 3 };
+        return {
+          body: {
+            results: [fittingRecord({ name, system_name: bySystem[name], market_id: mid[name] })],
+          },
+        };
+      },
+    });
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    const result = await client.plotTrade(REQ);
+    expect(result.route.hops).toHaveLength(3);
+    expect(result.route.hops.every((h) => h.padFit === true)).toBe(true);
+    const lookups = calls.filter((c) => c.url.includes('/stations/search'));
+    expect(lookups.length).toBe(2); // B Hub once (cached on revisit) + C Port once
+  });
+});
+
 describe('plotNeutron', () => {
   const NREQ = { from: 'Lave', to: 'Colonia', jumpRange: 28.5, efficiency: 60 };
 

@@ -29,6 +29,13 @@ export interface Hop {
   sellPrice: number;
   profit: number;
   distanceLy: number;
+  /**
+   * v1.11 pad verification (both OPTIONAL — host-annotated on Spansh Medium-pad
+   * plots only, describing the hop's DESTINATION station; absent everywhere else,
+   * including all engine-planned hops). undefined means "unknown", not "no fit".
+   */
+  padFit?: boolean;
+  pads?: { small: number; medium: number; large: number };
 }
 
 const PAD_RANK: Record<PadSize, number> = { S: 1, M: 2, L: 3 };

@@ -159,11 +159,114 @@ export class SpanshClient {
     for (let i = 0; i < MAX_POLLS; i++) {
       const result = await this.request(`/results/${job}`, { method: 'GET' });
       if (result.state === 'completed' || Array.isArray(result.result)) {
-        return this.mapResult(result.result ?? [], req);
+        const rawHops = result.result ?? [];
+        const mapped = this.mapResult(rawHops, req);
+        // v1.11: the trade API's only pad lever is binary requires_large_pad, so
+        // Medium-pad plots (sent with requires_large_pad=0) get NO server-side pad
+        // filtering and need client-side post-verification. S always fits and L is
+        // already server-guaranteed via requires_large_pad=1 — no lookups for either.
+        if (req.padSize === 'M') {
+          await this.annotateMediumPadFit(mapped.route.hops, rawHops);
+        }
+        return mapped;
       }
       await new Promise((r) => setTimeout(r, this.pollMs));
     }
     throw new Error('Spansh route job timed out');
+  }
+
+  /*
+   * DECLARED SHAPE (pad fields; canonical: packages/app/fixtures/spansh/
+   * station-search-pads.json — Abraham Lincoln / Sol, S/M/L = 8/9/5, live-probed
+   * 2026-07-27; findings doc "Pad sizes" section):
+   *  - Trade-route hop source/destination objects carry NO pad fields at all (only
+   *    market_id as a join key), hence this second lookup per destination.
+   *  - POST {base}/stations/search records DO carry `has_large_pad: bool` plus
+   *    `small_pads`/`medium_pads`/`large_pads` counts. Spansh's own station-detail
+   *    template renders the counts conditionally (null-guarded), so missing/null
+   *    counts must be treated conservatively — the M-fit test is
+   *    (medium_pads ?? 0) > 0 || (large_pads ?? 0) > 0 || has_large_pad === true.
+   *  - Station `type` is NOT a reliable discriminator. Live Settlement
+   *    counterexample from the probe: Rahman Horticultural Estate (S/M/L = 1/0/0 —
+   *    a Type-6 CANNOT land) vs Etienam Metallurgic Facility (S/M/L = 1/0/1,
+   *    has_large_pad true — it CAN, on the L pad); same type, opposite verdicts.
+   */
+
+  /**
+   * Annotate each hop with its DESTINATION station's Medium-pad fit.
+   * Destination-only by design: the actionable stops of a route are the
+   * destinations (hop N's source is hop N-1's destination, so every intermediate
+   * station is covered exactly once), and hop 0's source is where the user is
+   * already docked — verifying it would be noise, so it is deliberately skipped.
+   * Lookup failure or no exact match leaves padFit/pads undefined (unknown ≠ bad).
+   * Lookups are cached per plot by `${system}/${station}` — loop routes revisit
+   * stations.
+   */
+  private async annotateMediumPadFit(hops: Hop[], rawHops: any[]): Promise<void> {
+    const cache = new Map<string, any | null>();
+    for (let i = 0; i < hops.length; i++) {
+      const hop = hops[i];
+      if (!hop.toSystem || !hop.toStation) continue;
+      const key = `${hop.toSystem}/${hop.toStation}`;
+      let record: any | null;
+      if (cache.has(key)) {
+        record = cache.get(key);
+      } else {
+        // mapResult drops market_id, so read it off the raw hop (same index) for
+        // disambiguation when two stations share a name.
+        record = await this.lookupStationPads(
+          hop.toStation,
+          hop.toSystem,
+          rawHops[i]?.destination?.market_id
+        );
+        cache.set(key, record);
+      }
+      if (!record) continue;
+      hop.padFit =
+        (record.medium_pads ?? 0) > 0 ||
+        (record.large_pads ?? 0) > 0 ||
+        record.has_large_pad === true;
+      hop.pads = {
+        small: record.small_pads ?? 0,
+        medium: record.medium_pads ?? 0,
+        large: record.large_pads ?? 0,
+      };
+    }
+  }
+
+  /**
+   * Exact-match station record lookup for pad data. Filters by name + system_name,
+   * keeps only records whose name AND system_name match exactly (case-insensitive),
+   * and prefers the record whose market_id equals the hop's when we have one.
+   * Returns null on any failure — pad verification must never break the plot.
+   */
+  private async lookupStationPads(
+    station: string,
+    system: string,
+    marketId?: number
+  ): Promise<any | null> {
+    try {
+      const body = await this.request('/stations/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filters: { name: { value: station }, system_name: { value: system } },
+          size: 10,
+        }),
+      });
+      const candidates = (body.results ?? []).filter(
+        (r: any) =>
+          String(r.name ?? '').toLowerCase() === station.toLowerCase() &&
+          String(r.system_name ?? '').toLowerCase() === system.toLowerCase()
+      );
+      if (marketId !== undefined && marketId !== null) {
+        const exact = candidates.find((r: any) => r.market_id === marketId);
+        if (exact) return exact;
+      }
+      return candidates[0] ?? null;
+    } catch {
+      return null;
+    }
   }
 
   private mapResult(rawHops: any[], req: PlotTradeRequest): PlotTradeResult {
