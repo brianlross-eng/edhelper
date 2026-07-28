@@ -1,4 +1,4 @@
-import type { Hop, TradeRoute } from '@edhelper/engine';
+import type { Hop, PadSize, TradeRoute } from '@edhelper/engine';
 import type {
   PlotTradeRequest,
   PlotTradeResult,
@@ -26,6 +26,9 @@ import type {
   PlotColonisationRequest,
   ColonisationRoute,
   ColonisationWaypoint,
+  SellCargoRequest,
+  SellCargoResult,
+  SellCargoRow,
 } from '../shared/ipc-types.js';
 
 /*
@@ -58,6 +61,16 @@ import type {
  *  - POST {base}/systems/search  {"filters":{"name":{"value":q}},"size":n} -> {"results":[{"name":s,...}]}
  *  - POST {base}/stations/search {"filters":{"name":{"value":q}},"size":n} -> {"results":[{"name":s,"system_name":s,...}]}
  */
+
+/** Every station type that is NOT a fleet carrier (Spansh
+ *  GET /stations/field_values/type, probed 2026-07-28). Used to exclude
+ *  carriers from sell searches server-side. */
+const DOCKABLE_STATION_TYPES = [
+  'Asteroid base', 'Coriolis Starport', 'Dockable Planet Station', 'Dodec Starport',
+  'Mega ship', 'Ocellus Starport', 'Orbis Starport', 'Outpost',
+  'Planetary Construction Depot', 'Planetary Outpost', 'Planetary Port',
+  'Settlement', 'Space Construction Depot', 'Surface Settlement',
+];
 
 const DEFAULT_BASE = 'https://spansh.co.uk/api';
 const USER_AGENT = 'EDHelper/0.1';
@@ -944,6 +957,104 @@ export class SpanshClient {
     throw new Error('Spansh colonisation job timed out');
   }
 
+  /*
+   * DECLARED SHAPE (canonical: packages/app/fixtures/spansh/commodity-sell-search.json,
+   * live-probed 2026-07-28 — findings doc "Commodity sell search" section):
+   *  - GET {base}/stations/field_values/market -> { values: ["CMM Composite", ...] } —
+   *    398 localised DISPLAY names, the site's own commodity-picker source. Cached on
+   *    this client instance (one fetch per host run).
+   *    SILENT-ZERO TRAP: posting a market filter whose name is an internal journal
+   *    name ("cmmcomposite") returns 200 with count 0 / results [] — no error, no
+   *    hint. Every input is therefore canonicalized against this list FIRST
+   *    (case-insensitive EXACT match, which also fixes journal-cased plain names
+   *    like 'gold'; a miss throws `Unknown commodity: <input>` instead).
+   *  - POST {base}/stations/search (json, synchronous 200 — no job/poll):
+   *    { filters: { market: [{ name: <display>, demand: {value:[min,max],
+   *                 comparison:"<=>"} }],       // BOTH range ends required
+   *                 distance: {min, max} },     // plain shape, no comparison key
+   *      sort: [{ market_sell_price: [{ name: <display>, direction: "desc" }] }],
+   *      size, page, reference_system: <name> }
+   *    -> { count (ES-capped at 10000), results: [station record...], search
+   *    (echoed body), search_reference, ... }. Each record carries name,
+   *    system_name, distance (ly from reference), type, small/medium/large_pads +
+   *    has_large_pad, market_updated_at (a STRING like "2025-03-03 05:09:22+00" —
+   *    unlike the unix ints on trade hops), and market[] rows
+   *    { commodity, sell_price, demand, ... } — the matched row is read back by
+   *    display name. Raw sell-price-desc results are dominated by stale fleet
+   *    carriers (fixture: 10/10 Drake-Class Carrier, several a year old), hence
+   *    the client-side staleness + carrier filters below.
+   */
+  async sellCargo(req: SellCargoRequest): Promise<SellCargoResult> {
+    const commodity = await this.canonicalizeCommodity(req.commodity);
+    const body = await this.request('/stations/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        filters: {
+          market: [{ name: commodity, demand: { value: [req.amount, 1_000_000_000], comparison: '<=>' } }],
+          distance: { min: 0, max: req.radiusLy },
+          // Carriers are excluded SERVER-side: they set arbitrary prices and
+          // dominate a sell-price-desc sort so completely that a live probe
+          // found 100/100 results were carriers, leaving one usable station
+          // after client filtering. Filtering by type fixes the ranking at the
+          // source (values from GET /stations/field_values/type, probed).
+          ...(req.includeCarriers ? {} : { type: { value: DOCKABLE_STATION_TYPES } }),
+        },
+        sort: [{ market_sell_price: [{ name: commodity, direction: 'desc' }] }],
+        size: 30,
+        page: 0,
+        reference_system: req.fromSystem,
+      }),
+    });
+    const cutoff = Date.now() - req.maxAgeDays * 86_400_000;
+    const rows: SellCargoRow[] = [];
+    let hidden = 0;
+    for (const r of body.results ?? []) {
+      const market = (r.market ?? []).find(
+        (m: any) => String(m.commodity ?? '').toLowerCase() === commodity.toLowerCase()
+      );
+      if (!market) continue; // server matched but the row is unreadable — skip, not a "hidden by rules" count
+      // NaN (missing/unparseable timestamp) fails the comparison — counted stale.
+      if (!(parseSpanshTimestamp(r.market_updated_at) >= cutoff)) {
+        hidden++;
+        continue;
+      }
+      if (!req.includeCarriers && String(r.type ?? '').includes('Carrier')) {
+        hidden++;
+        continue;
+      }
+      rows.push({
+        station: r.name ?? '',
+        system: r.system_name ?? '',
+        distanceLy: r.distance ?? 0,
+        sellPrice: market.sell_price ?? 0,
+        demand: market.demand ?? 0,
+        updatedAt: String(r.market_updated_at ?? ''),
+        padFit: padFits(req.padSize, r),
+        stationType: r.type ?? '',
+      });
+    }
+    return { rows: rows.slice(0, 15), hidden };
+  }
+
+  private marketCommodities: string[] | null = null;
+
+  /** Resolve any input (display name in any casing, or a plain journal name like
+   *  'gold') to Spansh's canonical DISPLAY name via the cached field_values list.
+   *  Internal compound names ('cmmcomposite') deliberately DON'T match — the
+   *  caller gets a hard error instead of the API's silent count-0. */
+  private async canonicalizeCommodity(input: string): Promise<string> {
+    if (!this.marketCommodities) {
+      const body = await this.request('/stations/field_values/market', { method: 'GET' });
+      const values = (body.values ?? []).map((v: any) => String(v));
+      if (values.length === 0) throw new Error('Spansh returned no commodity list');
+      this.marketCommodities = values;
+    }
+    const match = this.marketCommodities!.find((v) => v.toLowerCase() === input.toLowerCase());
+    if (!match) throw new Error(`Unknown commodity: ${input}`);
+    return match;
+  }
+
   private mapColonisationResult(raw: any): ColonisationRoute {
     const waypoints: ColonisationWaypoint[] = (raw.jumps ?? []).map((j: any, i: number) => ({
       system: j.name ?? '',
@@ -962,6 +1073,26 @@ export class SpanshClient {
       ...(raw.reason !== undefined ? { reason: String(raw.reason) } : {}),
     };
   }
+}
+
+/** Spansh STATION timestamps are strings like "2025-03-03 05:09:22+00" — not
+ *  strict ISO (space separator, bare "+00" offset). Normalize before parsing;
+ *  NaN on anything unparseable, which callers treat as stale. */
+function parseSpanshTimestamp(raw: unknown): number {
+  if (typeof raw !== 'string' || raw === '') return NaN;
+  const t = Date.parse(raw.replace(' ', 'T').replace(/\+00(:00)?$/, 'Z'));
+  return Number.isNaN(t) ? Date.parse(raw) : t;
+}
+
+/** Pad-fit for a stations/search record. S always fits; M reuses the v1.11
+ *  medium-fit test (counts null-guarded — Spansh's own template renders them
+ *  conditionally); L requires an actual large pad signal. */
+function padFits(padSize: PadSize, r: any): boolean {
+  if (padSize === 'S') return true;
+  if (padSize === 'M') {
+    return (r.medium_pads ?? 0) > 0 || (r.large_pads ?? 0) > 0 || r.has_large_pad === true;
+  }
+  return r.has_large_pad === true || (r.large_pads ?? 0) > 0;
 }
 
 /** Same display heuristic the engine uses: ~45s per jump + 5 min per dock.

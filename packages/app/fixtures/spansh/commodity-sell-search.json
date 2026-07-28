@@ -1,0 +1,1467 @@
+{
+  "_note": "Live probe 2026-07-28. POST https://spansh.co.uk/api/stations/search (200 OK, synchronous). Response verbatim except: each results[].market truncated to the matched 'CMM Composite' row (original row count in _market_rows_truncated_from) and results[].modules/ships emptied (counts in _modules_truncated_from/_ships_truncated_from).",
+  "request": {
+    "method": "POST",
+    "url": "https://spansh.co.uk/api/stations/search",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "filters": {
+        "market": [
+          {
+            "name": "CMM Composite",
+            "demand": {
+              "value": [
+                1,
+                1000000000
+              ],
+              "comparison": "<=>"
+            },
+            "sell_price": {
+              "value": [
+                1,
+                1000000000
+              ],
+              "comparison": "<=>"
+            }
+          }
+        ]
+      },
+      "sort": [
+        {
+          "market_sell_price": [
+            {
+              "name": "CMM Composite",
+              "direction": "desc"
+            }
+          ]
+        }
+      ],
+      "size": 10,
+      "page": 0,
+      "reference_system": "Vafthruva"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "count": 10000,
+      "from": 0,
+      "reference": {
+        "id64": 5067658765777,
+        "name": "Vafthruva",
+        "x": -90.84375,
+        "y": -23.3125,
+        "z": 99.375
+      },
+      "results": [
+        {
+          "carrier_docking_access": "All",
+          "carrier_name": "THE EDDIE MAIDEN",
+          "controlling_minor_faction": "FleetCarrier",
+          "distance": 209.853999656607,
+          "distance_to_arrival": 390.334378,
+          "economies": [
+            {
+              "name": "Private Enterprise",
+              "share": 100.0
+            }
+          ],
+          "export_commodities": [
+            {
+              "name": "Aluminium"
+            },
+            {
+              "name": "Basic Medicines"
+            },
+            {
+              "name": "CMM Composite"
+            }
+          ],
+          "government": "Private Ownership",
+          "has_large_pad": true,
+          "has_market": true,
+          "has_outfitting": true,
+          "has_shipyard": true,
+          "id": "3709840640",
+          "import_commodities": [
+            {
+              "name": "CMM Composite"
+            },
+            {
+              "name": "Aluminium"
+            },
+            {
+              "name": "Basic Medicines"
+            }
+          ],
+          "is_planetary": false,
+          "large_pads": 8,
+          "market": [
+            {
+              "buy_price": 0,
+              "category": "Industrial Materials",
+              "commodity": "CMM Composite",
+              "demand": 196,
+              "sell_price": 198371,
+              "supply": 0
+            }
+          ],
+          "market_id": 3709840640,
+          "market_updated_at": "2025-03-03 05:09:22+00",
+          "medium_pads": 4,
+          "modules": [],
+          "name": "T1L-WTG",
+          "outfitting_updated_at": "2025-03-02 21:24:40+00",
+          "primary_economy": "Private Enterprise",
+          "services": [
+            {
+              "name": "Dock"
+            },
+            {
+              "name": "Autodock"
+            },
+            {
+              "name": "Market"
+            },
+            {
+              "name": "Contacts"
+            },
+            {
+              "name": "Outfitting"
+            },
+            {
+              "name": "Crew Lounge"
+            },
+            {
+              "name": "Restock"
+            },
+            {
+              "name": "Refuel"
+            },
+            {
+              "name": "Repair"
+            },
+            {
+              "name": "Shipyard"
+            },
+            {
+              "name": "Workshop"
+            },
+            {
+              "name": "Flight Controller"
+            },
+            {
+              "name": "Station Operations"
+            },
+            {
+              "name": "Station Menu"
+            },
+            {
+              "name": "Fleet Carrier Management"
+            },
+            {
+              "name": "Fleet Carrier Fuel"
+            },
+            {
+              "name": "Livery"
+            },
+            {
+              "name": "Redemption Office"
+            },
+            {
+              "name": "Social Space"
+            },
+            {
+              "name": "Bartender"
+            }
+          ],
+          "small_pads": 4,
+          "system_controlling_power": "Jerome Archer",
+          "system_id64": 4207021134530,
+          "system_is_colonised": true,
+          "system_name": "Hyades Sector ND-S c4-15",
+          "system_population": 4960302,
+          "system_power": [
+            "Edmund Mahon",
+            "Li Yong-Rui",
+            "Pranav Antal",
+            "Zemina Torval",
+            "Jerome Archer"
+          ],
+          "system_power_state": "Exploited",
+          "system_primary_economy": "Industrial",
+          "system_secondary_economy": "Extraction",
+          "system_x": -24.6875,
+          "system_y": 10.75,
+          "system_z": -96.84375,
+          "type": "Drake-Class Carrier",
+          "updated_at": "2026-07-05 10:14:49+00",
+          "_market_rows_truncated_from": 6,
+          "_modules_truncated_from": 173
+        },
+        {
+          "carrier_docking_access": "All",
+          "carrier_name": "[GROM] IRON JOHN",
+          "controlling_minor_faction": "FleetCarrier",
+          "distance": 102.393756866874,
+          "distance_to_arrival": 11.626777,
+          "economies": [
+            {
+              "name": "Private Enterprise",
+              "share": 100.0
+            }
+          ],
+          "export_commodities": [
+            {
+              "name": "CMM Composite"
+            },
+            {
+              "name": "Ceramic Composites"
+            },
+            {
+              "name": "Steel"
+            }
+          ],
+          "government": "Private Ownership",
+          "has_large_pad": true,
+          "has_market": true,
+          "has_outfitting": true,
+          "has_shipyard": true,
+          "id": "3711165440",
+          "import_commodities": [
+            {
+              "name": "CMM Composite"
+            },
+            {
+              "name": "Ceramic Composites"
+            },
+            {
+              "name": "Steel"
+            }
+          ],
+          "is_planetary": false,
+          "large_pads": 8,
+          "market": [
+            {
+              "buy_price": 0,
+              "category": "Industrial Materials",
+              "commodity": "CMM Composite",
+              "demand": 11726,
+              "sell_price": 119488,
+              "supply": 0
+            }
+          ],
+          "market_id": 3711165440,
+          "market_updated_at": "2025-12-28 01:01:16+00",
+          "medium_pads": 4,
+          "name": "V2W-41X",
+          "primary_economy": "Private Enterprise",
+          "prohibited_commodities": [
+            {
+              "name": "Imperial Slaves"
+            },
+            {
+              "name": "Onionhead Gamma Strain"
+            }
+          ],
+          "services": [
+            {
+              "name": "Dock"
+            },
+            {
+              "name": "Autodock"
+            },
+            {
+              "name": "Market"
+            },
+            {
+              "name": "Contacts"
+            },
+            {
+              "name": "Universal Cartographics"
+            },
+            {
+              "name": "Outfitting"
+            },
+            {
+              "name": "Crew Lounge"
+            },
+            {
+              "name": "Restock"
+            },
+            {
+              "name": "Refuel"
+            },
+            {
+              "name": "Repair"
+            },
+            {
+              "name": "Shipyard"
+            },
+            {
+              "name": "Workshop"
+            },
+            {
+              "name": "Flight Controller"
+            },
+            {
+              "name": "Station Operations"
+            },
+            {
+              "name": "Station Menu"
+            },
+            {
+              "name": "Fleet Carrier Management"
+            },
+            {
+              "name": "Fleet Carrier Fuel"
+            },
+            {
+              "name": "Livery"
+            },
+            {
+              "name": "Redemption Office"
+            },
+            {
+              "name": "Social Space"
+            },
+            {
+              "name": "Bartender"
+            }
+          ],
+          "ships": [],
+          "shipyard_updated_at": "2026-06-30 03:55:42+00",
+          "small_pads": 4,
+          "system_id64": 11666070775249,
+          "system_is_being_colonised": false,
+          "system_is_colonised": false,
+          "system_name": "Evena",
+          "system_population": 34629427,
+          "system_power": [
+            "Aisling Duval",
+            "Edmund Mahon",
+            "Yuri Grom",
+            "Zemina Torval",
+            "Nakato Kaine"
+          ],
+          "system_power_state": "Unoccupied",
+          "system_primary_economy": "Industrial",
+          "system_secondary_economy": "Extraction",
+          "system_x": 9.34375,
+          "system_y": -2.4375,
+          "system_z": 96.03125,
+          "type": "Drake-Class Carrier",
+          "updated_at": "2026-07-23 13:46:29+00",
+          "_market_rows_truncated_from": 3,
+          "_ships_truncated_from": 30
+        },
+        {
+          "carrier_docking_access": "Squadron",
+          "controlling_minor_faction": "FleetCarrier",
+          "distance": 218.466041143269,
+          "distance_to_arrival": 94.11952,
+          "economies": [
+            {
+              "name": "Private Enterprise",
+              "share": 100.0
+            }
+          ],
+          "export_commodities": [
+            {
+              "name": "CMM Composite"
+            },
+            {
+              "name": "Computer Components"
+            },
+            {
+              "name": "Food Cartridges"
+            }
+          ],
+          "government": "Private Ownership",
+          "has_large_pad": true,
+          "has_market": true,
+          "id": "3707952384",
+          "import_commodities": [
+            {
+              "name": "Steel"
+            },
+            {
+              "name": "Titanium"
+            },
+            {
+              "name": "CMM Composite"
+            }
+          ],
+          "is_planetary": false,
+          "large_pads": 8,
+          "market": [
+            {
+              "buy_price": 0,
+              "category": "Industrial Materials",
+              "commodity": "CMM Composite",
+              "demand": 4508,
+              "sell_price": 107205,
+              "supply": 0
+            }
+          ],
+          "market_id": 3707952384,
+          "market_updated_at": "2026-07-23 22:05:02+00",
+          "medium_pads": 4,
+          "name": "G7K-26V",
+          "primary_economy": "Private Enterprise",
+          "prohibited_commodities": [
+            {
+              "name": "Narcotics"
+            },
+            {
+              "name": "Onionhead Gamma Strain"
+            }
+          ],
+          "services": [
+            {
+              "name": "Dock"
+            },
+            {
+              "name": "Autodock"
+            },
+            {
+              "name": "Market"
+            },
+            {
+              "name": "Contacts"
+            },
+            {
+              "name": "Universal Cartographics"
+            },
+            {
+              "name": "Crew Lounge"
+            },
+            {
+              "name": "Restock"
+            },
+            {
+              "name": "Refuel"
+            },
+            {
+              "name": "Repair"
+            },
+            {
+              "name": "Workshop"
+            },
+            {
+              "name": "Flight Controller"
+            },
+            {
+              "name": "Station Operations"
+            },
+            {
+              "name": "Station Menu"
+            },
+            {
+              "name": "Fleet Carrier Management"
+            },
+            {
+              "name": "Fleet Carrier Fuel"
+            },
+            {
+              "name": "Social Space"
+            }
+          ],
+          "ships": [],
+          "shipyard_updated_at": "2026-06-15 22:56:47+00",
+          "small_pads": 4,
+          "system_controlling_power": "Denton Patreus",
+          "system_id64": 9467315496337,
+          "system_is_being_colonised": false,
+          "system_is_colonised": false,
+          "system_name": "Witou",
+          "system_population": 27279467,
+          "system_power": [
+            "Denton Patreus",
+            "Li Yong-Rui"
+          ],
+          "system_power_state": "Fortified",
+          "system_primary_economy": "High Tech",
+          "system_secondary_economy": "Refinery",
+          "system_x": 29.6875,
+          "system_y": -127.5625,
+          "system_z": -50.0625,
+          "type": "Drake-Class Carrier",
+          "updated_at": "2026-07-23 22:05:02+00",
+          "_market_rows_truncated_from": 10,
+          "_ships_truncated_from": 6
+        },
+        {
+          "carrier_docking_access": "All",
+          "carrier_name": "POINT BARROW",
+          "controlling_minor_faction": "FleetCarrier",
+          "distance": 261.328632753617,
+          "distance_to_arrival": 1611.477044,
+          "economies": [
+            {
+              "name": "Private Enterprise",
+              "share": 100.0
+            }
+          ],
+          "export_commodities": [
+            {
+              "name": "CMM Composite"
+            }
+          ],
+          "government": "Private Ownership",
+          "has_large_pad": true,
+          "has_market": true,
+          "has_outfitting": true,
+          "has_shipyard": true,
+          "id": "3708936704",
+          "import_commodities": [
+            {
+              "name": "CMM Composite"
+            }
+          ],
+          "is_planetary": false,
+          "large_pads": 8,
+          "market": [
+            {
+              "buy_price": 0,
+              "category": "Industrial Materials",
+              "commodity": "CMM Composite",
+              "demand": 33,
+              "sell_price": 105800,
+              "supply": 0
+            }
+          ],
+          "market_id": 3708936704,
+          "market_updated_at": "2025-04-23 22:14:29+00",
+          "medium_pads": 4,
+          "name": "T9J-2QG",
+          "primary_economy": "Private Enterprise",
+          "services": [
+            {
+              "name": "Dock"
+            },
+            {
+              "name": "Autodock"
+            },
+            {
+              "name": "Market"
+            },
+            {
+              "name": "Contacts"
+            },
+            {
+              "name": "Universal Cartographics"
+            },
+            {
+              "name": "Outfitting"
+            },
+            {
+              "name": "Crew Lounge"
+            },
+            {
+              "name": "Restock"
+            },
+            {
+              "name": "Refuel"
+            },
+            {
+              "name": "Repair"
+            },
+            {
+              "name": "Shipyard"
+            },
+            {
+              "name": "Workshop"
+            },
+            {
+              "name": "Flight Controller"
+            },
+            {
+              "name": "Station Operations"
+            },
+            {
+              "name": "Station Menu"
+            },
+            {
+              "name": "Fleet Carrier Management"
+            },
+            {
+              "name": "Fleet Carrier Fuel"
+            },
+            {
+              "name": "Livery"
+            },
+            {
+              "name": "Redemption Office"
+            },
+            {
+              "name": "Social Space"
+            },
+            {
+              "name": "Bartender"
+            },
+            {
+              "name": "Vista Genomics"
+            },
+            {
+              "name": "Pioneer Supplies"
+            }
+          ],
+          "small_pads": 4,
+          "system_controlling_power": "A. Lavigny-Duval",
+          "system_id64": 1458510467810,
+          "system_is_being_colonised": false,
+          "system_is_colonised": false,
+          "system_name": "Ngurii",
+          "system_population": 8941129,
+          "system_power": [
+            "A. Lavigny-Duval",
+            "Aisling Duval"
+          ],
+          "system_power_state": "Stronghold",
+          "system_primary_economy": "Industrial",
+          "system_secondary_economy": "Extraction",
+          "system_x": 169.5,
+          "system_y": -42.34375,
+          "system_z": 87.0625,
+          "type": "Drake-Class Carrier",
+          "updated_at": "2026-03-03 03:45:47+00",
+          "_market_rows_truncated_from": 1
+        },
+        {
+          "carrier_docking_access": "Squadron Friends",
+          "controlling_minor_faction": "FleetCarrier",
+          "distance": 348.594652060689,
+          "distance_to_arrival": 4953.03179,
+          "economies": [
+            {
+              "name": "Private Enterprise",
+              "share": 100.0
+            }
+          ],
+          "export_commodities": [
+            {
+              "name": "CMM Composite"
+            }
+          ],
+          "government": "Private Ownership",
+          "has_large_pad": true,
+          "has_market": true,
+          "has_shipyard": true,
+          "id": "3700454656",
+          "import_commodities": [
+            {
+              "name": "CMM Composite"
+            }
+          ],
+          "is_planetary": false,
+          "large_pads": 8,
+          "market": [
+            {
+              "buy_price": 0,
+              "category": "Industrial Materials",
+              "commodity": "CMM Composite",
+              "demand": 656,
+              "sell_price": 105092,
+              "supply": 0
+            }
+          ],
+          "market_id": 3700454656,
+          "market_updated_at": "2026-06-19 00:38:11+00",
+          "medium_pads": 4,
+          "name": "XFQ-2VZ",
+          "primary_economy": "Private Enterprise",
+          "prohibited_commodities": [
+            {
+              "name": "Imperial Slaves"
+            }
+          ],
+          "services": [
+            {
+              "name": "Dock"
+            },
+            {
+              "name": "Autodock"
+            },
+            {
+              "name": "Market"
+            },
+            {
+              "name": "Contacts"
+            },
+            {
+              "name": "Universal Cartographics"
+            },
+            {
+              "name": "Crew Lounge"
+            },
+            {
+              "name": "Restock"
+            },
+            {
+              "name": "Refuel"
+            },
+            {
+              "name": "Repair"
+            },
+            {
+              "name": "Shipyard"
+            },
+            {
+              "name": "Workshop"
+            },
+            {
+              "name": "Flight Controller"
+            },
+            {
+              "name": "Station Operations"
+            },
+            {
+              "name": "Station Menu"
+            },
+            {
+              "name": "Fleet Carrier Management"
+            },
+            {
+              "name": "Fleet Carrier Fuel"
+            },
+            {
+              "name": "Social Space"
+            },
+            {
+              "name": "Bartender"
+            },
+            {
+              "name": "Vista Genomics"
+            },
+            {
+              "name": "Pioneer Supplies"
+            }
+          ],
+          "small_pads": 4,
+          "system_id64": 2896645081491,
+          "system_is_colonised": true,
+          "system_name": "Col 359 Sector NC-U d3-84",
+          "system_population": 328636690,
+          "system_power": [],
+          "system_primary_economy": "High Tech",
+          "system_secondary_economy": "Industrial",
+          "system_x": -247.65625,
+          "system_y": 112.03125,
+          "system_z": 379.75,
+          "type": "Drake-Class Carrier",
+          "updated_at": "2026-07-19 18:31:20+00",
+          "_market_rows_truncated_from": 1
+        },
+        {
+          "carrier_docking_access": "All",
+          "controlling_minor_faction": "FleetCarrier",
+          "distance": 204.287572087425,
+          "distance_to_arrival": 0.0,
+          "economies": [
+            {
+              "name": "Private Enterprise",
+              "share": 100.0
+            }
+          ],
+          "export_commodities": [
+            {
+              "name": "CMM Composite"
+            },
+            {
+              "name": "Ceramic Composites"
+            },
+            {
+              "name": "Liquid oxygen"
+            }
+          ],
+          "government": "Private Ownership",
+          "has_large_pad": true,
+          "has_market": true,
+          "id": "3706811136",
+          "import_commodities": [
+            {
+              "name": "Liquid oxygen"
+            },
+            {
+              "name": "Polymers"
+            },
+            {
+              "name": "CMM Composite"
+            }
+          ],
+          "is_planetary": false,
+          "large_pads": 8,
+          "market": [
+            {
+              "buy_price": 0,
+              "category": "Industrial Materials",
+              "commodity": "CMM Composite",
+              "demand": 120,
+              "sell_price": 103558,
+              "supply": 0
+            }
+          ],
+          "market_id": 3706811136,
+          "market_updated_at": "2026-06-25 20:41:42+00",
+          "medium_pads": 4,
+          "name": "K6N-B1V",
+          "primary_economy": "Private Enterprise",
+          "services": [
+            {
+              "name": "Dock"
+            },
+            {
+              "name": "Autodock"
+            },
+            {
+              "name": "Market"
+            },
+            {
+              "name": "Contacts"
+            },
+            {
+              "name": "Crew Lounge"
+            },
+            {
+              "name": "Workshop"
+            },
+            {
+              "name": "Flight Controller"
+            },
+            {
+              "name": "Station Operations"
+            },
+            {
+              "name": "Station Menu"
+            },
+            {
+              "name": "Fleet Carrier Management"
+            },
+            {
+              "name": "Fleet Carrier Fuel"
+            },
+            {
+              "name": "Social Space"
+            }
+          ],
+          "small_pads": 4,
+          "system_controlling_power": "A. Lavigny-Duval",
+          "system_id64": 9467852432817,
+          "system_is_being_colonised": false,
+          "system_is_colonised": false,
+          "system_name": "Nu",
+          "system_population": 3345963,
+          "system_power": [
+            "A. Lavigny-Duval",
+            "Aisling Duval",
+            "Denton Patreus",
+            "Zemina Torval"
+          ],
+          "system_power_state": "Fortified",
+          "system_primary_economy": "High Tech",
+          "system_secondary_economy": "Military",
+          "system_x": 71.375,
+          "system_y": -114.5,
+          "system_z": 15.09375,
+          "type": "Drake-Class Carrier",
+          "updated_at": "2026-07-20 17:05:52+00",
+          "_market_rows_truncated_from": 4
+        },
+        {
+          "carrier_docking_access": "All",
+          "controlling_minor_faction": "FleetCarrier",
+          "distance": 195.424702770978,
+          "distance_to_arrival": 13.760451,
+          "economies": [
+            {
+              "name": "Private Enterprise",
+              "share": 100.0
+            }
+          ],
+          "export_commodities": [
+            {
+              "name": "CMM Composite"
+            },
+            {
+              "name": "Ceramic Composites"
+            },
+            {
+              "name": "Guardian Casket"
+            }
+          ],
+          "government": "Private Ownership",
+          "has_large_pad": true,
+          "has_market": true,
+          "has_outfitting": true,
+          "has_shipyard": true,
+          "id": "3705630976",
+          "import_commodities": [
+            {
+              "name": "Ceramic Composites"
+            },
+            {
+              "name": "Tritium"
+            },
+            {
+              "name": "CMM Composite"
+            }
+          ],
+          "is_planetary": false,
+          "large_pads": 8,
+          "market": [
+            {
+              "buy_price": 0,
+              "category": "Industrial Materials",
+              "commodity": "CMM Composite",
+              "demand": 250,
+              "sell_price": 102260,
+              "supply": 0
+            }
+          ],
+          "market_id": 3705630976,
+          "market_updated_at": "2026-07-14 01:23:11+00",
+          "medium_pads": 4,
+          "modules": [],
+          "name": "K5K-26F",
+          "outfitting_updated_at": "2026-07-14 01:23:12+00",
+          "primary_economy": "Private Enterprise",
+          "services": [
+            {
+              "name": "Dock"
+            },
+            {
+              "name": "Autodock"
+            },
+            {
+              "name": "Black Market"
+            },
+            {
+              "name": "Market"
+            },
+            {
+              "name": "Contacts"
+            },
+            {
+              "name": "Universal Cartographics"
+            },
+            {
+              "name": "Outfitting"
+            },
+            {
+              "name": "Crew Lounge"
+            },
+            {
+              "name": "Restock"
+            },
+            {
+              "name": "Refuel"
+            },
+            {
+              "name": "Repair"
+            },
+            {
+              "name": "Shipyard"
+            },
+            {
+              "name": "Workshop"
+            },
+            {
+              "name": "Flight Controller"
+            },
+            {
+              "name": "Station Operations"
+            },
+            {
+              "name": "Station Menu"
+            },
+            {
+              "name": "Fleet Carrier Management"
+            },
+            {
+              "name": "Fleet Carrier Fuel"
+            },
+            {
+              "name": "Livery"
+            },
+            {
+              "name": "Redemption Office"
+            },
+            {
+              "name": "Social Space"
+            },
+            {
+              "name": "Bartender"
+            },
+            {
+              "name": "Vista Genomics"
+            },
+            {
+              "name": "Pioneer Supplies"
+            }
+          ],
+          "small_pads": 4,
+          "system_id64": 9465705473417,
+          "system_name": "Cephei Sector BV-Y b4",
+          "system_power": [],
+          "system_primary_economy": "None",
+          "system_secondary_economy": "None",
+          "system_x": -97.8125,
+          "system_y": 44.3125,
+          "system_z": -83.84375,
+          "type": "Drake-Class Carrier",
+          "updated_at": "2026-07-14 01:23:12+00",
+          "_market_rows_truncated_from": 11,
+          "_modules_truncated_from": 112
+        },
+        {
+          "carrier_docking_access": "All",
+          "controlling_minor_faction": "FleetCarrier",
+          "distance": 180.045333917947,
+          "distance_to_arrival": 0.0,
+          "economies": [
+            {
+              "name": "Private Enterprise",
+              "share": 100.0
+            }
+          ],
+          "export_commodities": [
+            {
+              "name": "Aluminium"
+            },
+            {
+              "name": "CMM Composite"
+            },
+            {
+              "name": "Liquid oxygen"
+            }
+          ],
+          "government": "Private Ownership",
+          "has_large_pad": true,
+          "has_market": true,
+          "id": "3708928000",
+          "import_commodities": [
+            {
+              "name": "Titanium"
+            },
+            {
+              "name": "Steel"
+            },
+            {
+              "name": "Liquid oxygen"
+            }
+          ],
+          "is_planetary": false,
+          "large_pads": 8,
+          "market": [
+            {
+              "buy_price": 0,
+              "category": "Industrial Materials",
+              "commodity": "CMM Composite",
+              "demand": 1024,
+              "sell_price": 80893,
+              "supply": 0
+            }
+          ],
+          "market_id": 3708928000,
+          "market_updated_at": "2025-03-06 15:30:25+00",
+          "medium_pads": 4,
+          "name": "HFK-66X",
+          "primary_economy": "Private Enterprise",
+          "services": [
+            {
+              "name": "Dock"
+            },
+            {
+              "name": "Autodock"
+            },
+            {
+              "name": "Market"
+            },
+            {
+              "name": "Contacts"
+            },
+            {
+              "name": "Crew Lounge"
+            },
+            {
+              "name": "Restock"
+            },
+            {
+              "name": "Refuel"
+            },
+            {
+              "name": "Repair"
+            },
+            {
+              "name": "Workshop"
+            },
+            {
+              "name": "Flight Controller"
+            },
+            {
+              "name": "Station Operations"
+            },
+            {
+              "name": "Station Menu"
+            },
+            {
+              "name": "Fleet Carrier Management"
+            },
+            {
+              "name": "Fleet Carrier Fuel"
+            },
+            {
+              "name": "Social Space"
+            }
+          ],
+          "small_pads": 4,
+          "system_controlling_power": "Edmund Mahon",
+          "system_id64": 1178725255531,
+          "system_is_being_colonised": false,
+          "system_is_colonised": false,
+          "system_name": "Delkar",
+          "system_population": 283812,
+          "system_power": [
+            "Aisling Duval",
+            "Edmund Mahon",
+            "Felicia Winters",
+            "Yuri Grom",
+            "Nakato Kaine"
+          ],
+          "system_power_state": "Stronghold",
+          "system_primary_economy": "Industrial",
+          "system_secondary_economy": "Refinery",
+          "system_x": 67.8125,
+          "system_y": 32.65625,
+          "system_z": 35.25,
+          "type": "Drake-Class Carrier",
+          "updated_at": "2026-07-16 18:33:09+00",
+          "_market_rows_truncated_from": 5
+        },
+        {
+          "carrier_docking_access": "All",
+          "carrier_name": "GRUNTILDA'S LAIR",
+          "controlling_minor_faction": "FleetCarrier",
+          "distance": 84.025142721539,
+          "distance_to_arrival": 38.647196,
+          "economies": [
+            {
+              "name": "Private Enterprise",
+              "share": 100.0
+            }
+          ],
+          "export_commodities": [
+            {
+              "name": "CMM Composite"
+            }
+          ],
+          "government": "Private Ownership",
+          "has_large_pad": true,
+          "has_market": true,
+          "id": "3704817152",
+          "import_commodities": [
+            {
+              "name": "CMM Composite"
+            }
+          ],
+          "is_planetary": false,
+          "large_pads": 8,
+          "market": [
+            {
+              "buy_price": 0,
+              "category": "Industrial Materials",
+              "commodity": "CMM Composite",
+              "demand": 371,
+              "sell_price": 76477,
+              "supply": 0
+            }
+          ],
+          "market_id": 3704817152,
+          "market_updated_at": "2025-03-18 12:16:55+00",
+          "medium_pads": 4,
+          "modules": [],
+          "name": "G8K-89L",
+          "outfitting_updated_at": "2020-12-31 19:02:55+00",
+          "primary_economy": "Private Enterprise",
+          "services": [
+            {
+              "name": "Dock"
+            },
+            {
+              "name": "Autodock"
+            },
+            {
+              "name": "Market"
+            },
+            {
+              "name": "Contacts"
+            },
+            {
+              "name": "Crew Lounge"
+            },
+            {
+              "name": "Restock"
+            },
+            {
+              "name": "Refuel"
+            },
+            {
+              "name": "Repair"
+            },
+            {
+              "name": "Workshop"
+            },
+            {
+              "name": "Flight Controller"
+            },
+            {
+              "name": "Station Operations"
+            },
+            {
+              "name": "Station Menu"
+            },
+            {
+              "name": "Fleet Carrier Management"
+            },
+            {
+              "name": "Fleet Carrier Fuel"
+            },
+            {
+              "name": "Social Space"
+            },
+            {
+              "name": "Bartender"
+            }
+          ],
+          "ships": [],
+          "shipyard_updated_at": "2020-12-31 19:02:55+00",
+          "small_pads": 4,
+          "system_controlling_power": "Yuri Grom",
+          "system_id64": 6955800204002,
+          "system_is_being_colonised": false,
+          "system_is_colonised": false,
+          "system_name": "Panoi",
+          "system_population": 2654856,
+          "system_power": [
+            "Edmund Mahon",
+            "Yuri Grom",
+            "Jerome Archer"
+          ],
+          "system_power_state": "Exploited",
+          "system_primary_economy": "Refinery",
+          "system_secondary_economy": "Industrial",
+          "system_x": -17.75,
+          "system_y": -9.46875,
+          "system_z": 60.3125,
+          "type": "Drake-Class Carrier",
+          "updated_at": "2025-12-27 05:27:37+00",
+          "_market_rows_truncated_from": 1,
+          "_modules_truncated_from": 21,
+          "_ships_truncated_from": 8
+        },
+        {
+          "carrier_docking_access": "All",
+          "controlling_minor_faction": "FleetCarrier",
+          "distance": 139.175579024752,
+          "distance_to_arrival": 0.0,
+          "economies": [
+            {
+              "name": "Private Enterprise",
+              "share": 100.0
+            }
+          ],
+          "export_commodities": [
+            {
+              "name": "CMM Composite"
+            },
+            {
+              "name": "Caustic Tissue Sample"
+            },
+            {
+              "name": "Meta-Alloys"
+            }
+          ],
+          "government": "Private Ownership",
+          "has_large_pad": true,
+          "has_market": true,
+          "id": "3710794752",
+          "import_commodities": [
+            {
+              "name": "Tritium"
+            },
+            {
+              "name": "CMM Composite"
+            },
+            {
+              "name": "Titan Partial Tissue Sample"
+            }
+          ],
+          "is_planetary": false,
+          "large_pads": 8,
+          "market": [
+            {
+              "buy_price": 0,
+              "category": "Industrial Materials",
+              "commodity": "CMM Composite",
+              "demand": 3000,
+              "sell_price": 75710,
+              "supply": 0
+            }
+          ],
+          "market_id": 3710794752,
+          "market_updated_at": "2025-03-01 09:47:41+00",
+          "medium_pads": 4,
+          "name": "TLQ-07L",
+          "primary_economy": "Private Enterprise",
+          "prohibited_commodities": [
+            {
+              "name": "Apa Vietii"
+            },
+            {
+              "name": "Narcotics"
+            },
+            {
+              "name": "Beer"
+            },
+            {
+              "name": "Bootleg Liquor"
+            },
+            {
+              "name": "Imperial Slaves"
+            },
+            {
+              "name": "Liquor"
+            },
+            {
+              "name": "Tobacco"
+            },
+            {
+              "name": "Wine"
+            }
+          ],
+          "services": [
+            {
+              "name": "Dock"
+            },
+            {
+              "name": "Autodock"
+            },
+            {
+              "name": "Market"
+            },
+            {
+              "name": "Contacts"
+            },
+            {
+              "name": "Universal Cartographics"
+            },
+            {
+              "name": "Crew Lounge"
+            },
+            {
+              "name": "Restock"
+            },
+            {
+              "name": "Refuel"
+            },
+            {
+              "name": "Repair"
+            },
+            {
+              "name": "Workshop"
+            },
+            {
+              "name": "Flight Controller"
+            },
+            {
+              "name": "Station Operations"
+            },
+            {
+              "name": "Station Menu"
+            },
+            {
+              "name": "Fleet Carrier Management"
+            },
+            {
+              "name": "Fleet Carrier Fuel"
+            },
+            {
+              "name": "Social Space"
+            },
+            {
+              "name": "Vista Genomics"
+            }
+          ],
+          "small_pads": 4,
+          "system_id64": 11666607580609,
+          "system_is_colonised": true,
+          "system_name": "Crucis Sector NI-T b3-5",
+          "system_population": 2482209,
+          "system_power": [
+            "Aisling Duval",
+            "Edmund Mahon",
+            "Yuri Grom",
+            "Zemina Torval"
+          ],
+          "system_power_state": "Unoccupied",
+          "system_primary_economy": "Industrial",
+          "system_secondary_economy": "Refinery",
+          "system_x": 41.34375,
+          "system_y": -24.46875,
+          "system_z": 55.84375,
+          "type": "Drake-Class Carrier",
+          "updated_at": "2025-07-12 21:02:20+00",
+          "_market_rows_truncated_from": 12
+        }
+      ],
+      "search": {
+        "filters": {
+          "market": [
+            {
+              "demand": {
+                "comparison": "<=>",
+                "value": [
+                  1,
+                  1000000000
+                ]
+              },
+              "name": "CMM Composite",
+              "sell_price": {
+                "comparison": "<=>",
+                "value": [
+                  1,
+                  1000000000
+                ]
+              }
+            }
+          ]
+        },
+        "page": 0,
+        "reference_system": "Vafthruva",
+        "reference_system_details": {
+          "id64": 5067658765777,
+          "name": "Vafthruva",
+          "x": -90.84375,
+          "y": -23.3125,
+          "z": 99.375
+        },
+        "size": 10,
+        "sort": [
+          {
+            "market_sell_price": [
+              {
+                "direction": "desc",
+                "name": "CMM Composite"
+              }
+            ]
+          }
+        ]
+      },
+      "search_reference": "4AB88650-8A44-11F1-91A9-A3DD5CC5369F",
+      "size": 10
+    }
+  }
+}

@@ -1191,3 +1191,202 @@ on the L pad) — same `type: "Settlement"`, opposite verdicts. So:
 3. **`requires_large_pad=1` strict mode** as a zero-extra-request fallback/toggle for M ships:
    guaranteed to fit (L-pad stations accept M ships) but over-restrictive — it excludes ALL
    Outposts, which are usually fine for a Type-6 (most have an M pad), so route profit suffers.
+
+## Commodity sell search (probed 2026-07-28)
+
+Question: how does Spansh find stations BUYING a commodity near a reference system (for a
+"sell my cargo nearby" tool)? Method as always: read the same Ember bundle
+(`elite-dangerous-gui-7c4a80cdff3416e86822ab0c9abf55fd.js`, already in scratchpad) first, then
+4 live requests (`curl.exe -A "EDHelper-dev/0.1"`, sequential, multi-second gaps).
+
+### There is no separate commodities endpoint — it's `POST /api/stations/search`
+
+The router map has **no `/commodities` route at all**. Spansh's commodity/market search is the
+stations search page (`/stations`) with market subfilters. `services/api`:
+
+```js
+searchStations(e,t,n,l,i,r,o){let a=this.createStationSearch(e,t,n,l,i,r,o)
+return this.performJSONPost("/api/stations/search",a)}
+createStationSearch(e,t,n,l,i,r,o){let a={filters:this.createStationFilters(e,t),sort:this.createStationSort(n,l),size:i,page:r-1}
+return this.createReferenceStruct(a,o),a}
+```
+
+So the body is `{filters, sort, size, page, reference_*}` — same synchronous 200-OK search as
+the existing `stations-search.json` fixture, no job/poll.
+
+### Market filter clause (`createMarketFilters`)
+
+```js
+createMarketFilters(e,t,n){...let r={name:e}
+for(const e in t){const n=t[e]
+null!=n[0]&&null!=n[1]&&(r[e]={value:[n[0],n[1]],comparison:"<=>"})}i.push(r)...}
+```
+
+`filters.market` is an **array** of per-commodity objects: `name` (commodity display name) plus
+any of `buy_price`/`sell_price`/`demand`/`supply` as `{"value":[min,max],"comparison":"<=>"}`
+range clauses (the controller's `commodityFieldNames` list is exactly those four). "Stations
+buying X with decent demand" is therefore:
+
+```json
+"market": [{"name": "CMM Composite",
+            "demand":     {"value": [1, 1000000000], "comparison": "<=>"},
+            "sell_price": {"value": [1, 1000000000], "comparison": "<=>"}}]
+```
+
+There is no server-side "min only" form — send a [min, hugeMax] range (both ends required:
+the builder skips the clause unless BOTH `n[0]` and `n[1]` are non-null).
+
+### Reference system (distance mechanism) — `createReferenceStruct`
+
+```js
+createReferenceStruct(e,t){if("object"==typeof t){
+  if("x"in t&&"y"in t&&"z"in t)return void(e.reference_coords=t)
+  if(t.source&&t.destination)return void(e.reference_route=t)}
+  e.reference_system=t}
+```
+
+Top-level `"reference_system": "Vafthruva"` (a NAME string). Alternatives: `reference_coords:
+{x,y,z}` or `reference_route: {source, destination}`. With a reference set, every result record's
+`distance` field is ly-from-reference, and the response `reference` object echoes the resolved
+system (`{"id64":5067658765777,"name":"Vafthruva","x":-90.84375,"y":-23.3125,"z":99.375}` —
+verified live). Distance is then both sortable and filterable.
+
+### Sort syntax (`createStationSort`)
+
+Normal fields: `{"<field>": {"direction": "asc"|"desc"}}` per entry of the `sort` array.
+Market fields get a special branch:
+
+```js
+if("market"==e.type){let n={}
+return n[e.type+"_"+e.subtype]=[{name:e.field,direction:t[e.value]}],n}
+```
+
+where `subtype` ∈ `buy_price|sell_price|demand|supply` and `field` is the commodity name (read
+from the stations controller's sortFields construction:
+`{value:t.value+"-sell_price",field:t.value,...,subtype:"sell_price"}`). So:
+
+- sell price desc: `{"market_sell_price": [{"name": "CMM Composite", "direction": "desc"}]}`
+- distance asc: `{"distance": {"direction": "asc"}}`
+
+Both verified live (the second probe sorted by distance asc and returned distance-0 in-system
+stations first).
+
+### Max radius — yes: the `distance` filter (`createDistanceFilters`)
+
+```js
+createDistanceFilters(e,t,n){...e[this.convertFilterName(t,l)]={min:n[l][0],max:n[l][1]}...}
+```
+
+`filters.distance = {"min": 0, "max": 50}` (ly from the reference system). **Different shape**
+from ordinary numeric filters — plain `{min,max}`, no `comparison`/`value` keys. Verified live:
+CMM Composite demand≥1 near Vafthruva unfiltered gives the capped `count: 10000`; with
+`distance {min:0,max:50}` → `count: 3569`, all results within 50 ly (nearest at 0.0 ly,
+in-system settlements/outposts).
+
+### Commodity NAME format: localised display name, NOT the internal journal name
+
+`GET /api/stations/field_values/market` (the site's own commodity picker source, from
+`basicFieldValues("stations","market")` in `routes/stations`) → 200, `{"values":[...]}`, 398
+entries, all localised display names — `"CMM Composite"` is in the list; `"cmmcomposite"` is
+not. Station records' `market[].commodity` values use the same display names.
+
+**Mismatch behavior (silent-zero trap, again):** posting the market filter with
+`"name": "cmmcomposite"` returns 200 with `count: 0, results: []` — no error, no hint. Same
+family as the trade-route silent-ignore trap. Our journal inventory carries both
+`Name` (lowercased internal, e.g. `cmmcomposite`) and `Name_Localised` ("CMM Composite") —
+**the tool must send `Name_Localised`** (or map internal→display via the `field_values/market`
+list, cacheable; note some journal entries for plain commodities like Gold have no
+`Name_Localised`, and display names also differ in punctuation, e.g. "Agri-Medicines" — an
+exact-match lookup against the 398-value list is the safe path).
+
+### Live probe (fixture)
+
+Request (saved with trimmed response as `packages/app/fixtures/spansh/commodity-sell-search.json`):
+
+```json
+{"filters":{"market":[{"name":"CMM Composite",
+                       "demand":{"value":[1,1000000000],"comparison":"<=>"},
+                       "sell_price":{"value":[1,1000000000],"comparison":"<=>"}}]},
+ "sort":[{"market_sell_price":[{"name":"CMM Composite","direction":"desc"}]}],
+ "size":10,"page":0,"reference_system":"Vafthruva"}
+```
+
+→ 200 OK, synchronous. Envelope keys: `count, from, reference, results, search,
+search_reference, size` (two keys beyond the plain stations-search fixture: `search` echoes the
+submitted body verbatim — a usable sanity check against the silent-zero trap — and
+`search_reference` is the site's shareable-search GUID). `count: 10000` (the usual ES cap).
+Top hit: `T1L-WTG` in `Hyades Sector ND-S c4-15`, `distance: 209.85`, CMM row
+`{"sell_price":198371,"demand":196,"buy_price":0,"supply":0,"category":"Industrial Materials"}`,
+`market_updated_at: "2025-03-03 05:09:22+00"` (a STRING timestamp here, not the unix int the
+trade-route hops use), pads S/M/L 4/4/8, `has_large_pad: true`, `type: "Drake-Class Carrier"`.
+All confirmed present on every record: `name`, `system_name`, `distance`, the commodity's
+`sell_price`/`demand`, `market_updated_at`, `small_pads`/`medium_pads`/`large_pads`/
+`has_large_pad`, `type` (full 46-key record shape as documented in the pad-sizes section;
+fixture truncates each record's `market` to the matched CMM row and empties `modules`/`ships`,
+with `_*_truncated_from` counts).
+
+Two practical notes from the results themselves:
+1. **Fleet carriers dominate a raw sell_price-desc sort** — all 10 top hits were Drake-Class
+   Carriers, several with year-old `market_updated_at`. A real "sell nearby" tool should offer
+   a freshness cut (client-side on `market_updated_at` — no server-side age filter clause was
+   found for station search) and/or a `type` exclusion via the group filter
+   (`"type":{"value":[...]}` accepts a station-type list) plus a demand floor raised above the
+   cargo amount.
+2. `count` stays the capped 10000 on broad market filters; use `size`/`page` (page is 0-based:
+   the site sends `page: r-1`) and don't trust `count` for pagination totals.
+
+### Recommended request shape for ED Helper's "sell my cargo nearby"
+
+```json
+{
+  "filters": {
+    "market": [{"name": "<Name_Localised>",
+                "demand":     {"value": ["<cargoAmount>", 1000000000], "comparison": "<=>"},
+                "sell_price": {"value": [1, 1000000000], "comparison": "<=>"}}],
+    "distance": {"min": 0, "max": "<radiusLy>"}
+  },
+  "sort": [{"market_sell_price": [{"name": "<Name_Localised>", "direction": "desc"}]}],
+  "size": 20, "page": 0,
+  "reference_system": "<current system name>"
+}
+```
+
+(Numbers, not strings, for the placeholder values — quoted here only to keep the JSON block
+valid.) Then client-side: drop/flag stale `market_updated_at`, apply the pad-fit test from the
+pad-sizes section (`(medium_pads ?? 0) > 0 || (large_pads ?? 0) > 0 || has_large_pad === true`
+for M ships), and read the sell row out of each record's `market` array by
+`commodity === Name_Localised`.
+
+### Latency / headers
+
+All 4 requests sub-second, synchronous 200s. No rate-limit headers (same minimal nginx set).
+
+### Summary: findings verdict (commodity sell search)
+
+| Item | Verdict |
+|---|---|
+| Endpoint: no `/commodities` route; commodity search = `POST /api/stations/search` | **Confirmed** from router map + live |
+| Market filter clause `market: [{name, sell_price/demand/buy_price/supply: {value:[min,max], comparison:"<=>"}}]` | **Confirmed** bundle + live |
+| Reference mechanism: top-level `reference_system: "<name>"` (or `reference_coords`/`reference_route`); result `distance` = ly from reference | **Confirmed** bundle + live |
+| Sort: `{"market_sell_price":[{"name":"<commodity>","direction":"desc"}]}`, `{"distance":{"direction":"asc"}}` | **Confirmed** bundle + live |
+| Max radius: `filters.distance = {min,max}` (plain shape, no comparison key) | **Confirmed** bundle + live (count 10000→3569) |
+| Commodity names: localised display names ("CMM Composite"); internal journal names ("cmmcomposite") silently match nothing (200, count 0) | **Confirmed** live both ways |
+| `market_updated_at` is a string timestamp on station records (unix int on trade hops) | **Confirmed** — normalize client-side |
+| Response `search` echo + `search_reference` GUID extra envelope keys | **New finding** — `search` echo usable as a sanity check |
+
+### Station types (probed 2026-07-28)
+
+`GET /api/stations/field_values/type` → `{min_max: {<type>: count}, values: [...]}`.
+The 15 values, with live counts:
+
+Asteroid base 6446 · Coriolis Starport 39124 · Dockable Planet Station 1 ·
+Dodec Starport 7091 · **Drake-Class Carrier 53497 (the ONLY fleet-carrier type)** ·
+Mega ship 279 · Ocellus Starport 4207 · Orbis Starport 12301 · Outpost 113974 ·
+Planetary Construction Depot 43680 · Planetary Outpost 74859 ·
+Planetary Port 4804 · Settlement 310280 · Space Construction Depot 45364 ·
+Surface Settlement 3
+
+Filterable as `filters.type = { value: [<names>] }` (verified live). ED Helper's
+`DOCKABLE_STATION_TYPES` = all of the above MINUS Drake-Class Carrier; if Spansh
+adds a type later it silently drops out of non-carrier searches, so re-probe this
+endpoint when results look thin.

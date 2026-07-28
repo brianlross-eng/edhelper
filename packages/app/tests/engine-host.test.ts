@@ -172,8 +172,33 @@ beforeAll(async () => {
         const queried = JSON.parse(body)?.filters?.name?.value ?? 'Lave';
         const coords = queried === 'Sol' ? { x: 0, y: 0, z: 0 } : { x: 3, y: 4, z: 0 };
         res.end(JSON.stringify({ results: [{ name: queried, id64: 42, ...coords }] }));
+      } else if (req.url === '/stations/field_values/market') {
+        res.end(JSON.stringify({ values: ['Gold'] }));
       } else if (req.url === '/stations/search') {
-        res.end(JSON.stringify({ results: [{ name: 'Lave Station', system_name: 'Lave' }] }));
+        const filters = (body ? JSON.parse(body) : {})?.filters ?? {};
+        if (filters.market) {
+          // Sell-cargo search: one fresh dockable starport + one stale carrier.
+          const now = new Date().toISOString().replace('T', ' ').replace(/\.\d+Z$/, '+00');
+          res.end(JSON.stringify({
+            count: 2,
+            results: [
+              {
+                name: 'Fresh Hub', system_name: 'Sol', distance: 12.5, type: 'Coriolis Starport',
+                small_pads: 4, medium_pads: 4, large_pads: 8, has_large_pad: true,
+                market_updated_at: now,
+                market: [{ commodity: 'Gold', sell_price: 60000, demand: 500, buy_price: 0, supply: 0 }],
+              },
+              {
+                name: 'Stale Carrier', system_name: 'Elsewhere', distance: 50, type: 'Drake-Class Carrier',
+                small_pads: 4, medium_pads: 4, large_pads: 8, has_large_pad: true,
+                market_updated_at: '2020-01-01 00:00:00+00',
+                market: [{ commodity: 'Gold', sell_price: 99999, demand: 100, buy_price: 0, supply: 0 }],
+              },
+            ],
+          }));
+        } else {
+          res.end(JSON.stringify({ results: [{ name: 'Lave Station', system_name: 'Lave' }] }));
+        }
       } else if (req.url?.startsWith('/2.0/website/initiatives/list')) {
         res.end(
           JSON.stringify({
@@ -384,6 +409,19 @@ describe('engine-host (Spansh + EDDN)', () => {
     expect(result.totalJumps).toBe(2);
     expect(result.totalDistanceLy).toBe(100);
     expect(result.totalFuel).toBe(9);
+  });
+
+  it('searches sell-cargo markets end-to-end (journal-cased commodity, staleness hides the carrier)', async () => {
+    const result = await request('sellCargo', {
+      commodity: 'gold', amount: 10, fromSystem: 'Sol', radiusLy: 100,
+      maxAgeDays: 30, includeCarriers: false, padSize: 'M',
+    });
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0]).toMatchObject({
+      station: 'Fresh Hub', system: 'Sol', distanceLy: 12.5, sellPrice: 60000,
+      demand: 500, padFit: true, stationType: 'Coriolis Starport',
+    });
+    expect(result.hidden).toBe(1); // the stale carrier
   });
 
   it('plots a colonisation route and surfaces the incomplete flag', async () => {
