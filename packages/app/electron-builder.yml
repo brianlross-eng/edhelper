@@ -15,6 +15,13 @@ files:
   - package.json
   - "!node_modules/**"
 asar: true
+# Update channel (v1.12): npm run dist emits latest.yml + .blockmap next to the
+# exes; a GitHub release must attach latest.yml, the Setup exe, and its
+# blockmap for electron-updater to resolve updates.
+publish:
+  provider: github
+  owner: brianlross-eng
+  repo: edhelper
 npmRebuild: false
 nodeGypRebuild: false
 win:
