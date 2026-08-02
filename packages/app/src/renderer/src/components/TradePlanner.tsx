@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import type { PadSize, ShipState, TradeRoute } from '@edhelper/engine';
 import type { ActiveRoute, PlotTradeRequest, PlotTradeResponse, PlotTradeResult } from '../../../shared/ipc-types';
-import { PadWarning, RouteChecklist, hasPadAnnotations, padBadge } from './RouteChecklist';
+import {
+  HopCommodities, PadWarning, RouteChecklist, hasPadAnnotations, hopSummary, padBadge,
+} from './RouteChecklist';
 
 /** v1.13: muted INFO notice when the host's M-pad recovery altered the route.
  *  Informational only — the returned route is always fully dockable, so the
@@ -172,19 +174,32 @@ export function TradePlanner({ ship, route, onPlot, onStart, onClear }: TradePla
             <>
               <PadAdjustedNotice padAdjusted={result.padAdjusted} />
               <PadWarning hops={result.route.hops} />
-              {result.route.hops.map((hop, i) => (
-                <div key={i} className="hop" data-testid={`plan-hop-${i}`}>
-                  <span className="hop-marker">{i + 1}</span>
-                  <span>
-                    {hop.fromSystem}/{hop.fromStation} → {hop.toSystem}/{hop.toStation}
-                    {padBadge(hop, hasPadAnnotations(result.route.hops))}
-                  </span>
-                  <span className="muted">
-                    {hop.units}t {hop.commodity} @ {hop.buyPrice.toLocaleString()} → {hop.sellPrice.toLocaleString()}
-                  </span>
-                  <span className="profit">+{hop.profit.toLocaleString()} cr</span>
-                </div>
-              ))}
+              {result.route.hops.map((hop, i) => {
+                const hasBreakdown = (hop.commodities ?? []).length > 0;
+                const row = (
+                  <div
+                    className="hop"
+                    style={hasBreakdown ? { marginBottom: 0 } : undefined}
+                    data-testid={`plan-hop-${i}`}
+                  >
+                    <span className="hop-marker">{i + 1}</span>
+                    <span>
+                      {hop.fromSystem}/{hop.fromStation} → {hop.toSystem}/{hop.toStation}
+                      {padBadge(hop, hasPadAnnotations(result.route.hops))}
+                    </span>
+                    <span className="muted">{hopSummary(hop)}</span>
+                    <span className="profit">+{hop.profit.toLocaleString()} cr</span>
+                  </div>
+                );
+                // No breakdown (engine-planned hop): render exactly as before.
+                if (!hasBreakdown) return <Fragment key={i}>{row}</Fragment>;
+                return (
+                  <div key={i} className="xwp">
+                    {row}
+                    <HopCommodities hop={hop} testIdPrefix={`plan-hop-${i}`} />
+                  </div>
+                );
+              })}
               <div className="route-summary">
                 <span>
                   Total +{result.route.totalProfit.toLocaleString()} cr over {result.route.totalDistanceLy.toFixed(1)} ly

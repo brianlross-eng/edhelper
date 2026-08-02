@@ -217,6 +217,84 @@ describe('TradePlanner pad verification (v1.11)', () => {
   });
 });
 
+// v1.16: a real multi-commodity hop as reported — the UI showed only
+// "66t imperial slaves +1 more" and Battle Weapons was undiscoverable.
+const MULTI_ROUTE: ActiveRoute = {
+  currentHop: 0,
+  hopStatus: ['active', 'pending'],
+  expectedProfit: 709_109,
+  actualProfit: 0,
+  route: {
+    totalProfit: 709_109, totalDistanceLy: 20,
+    hops: [
+      {
+        fromStationId: 1, toStationId: 2, fromSystem: 'Sol', fromStation: 'Alpha',
+        toSystem: 'LHS 20', toStation: 'Beta',
+        commodity: 'imperial slaves +1 more', units: 66, buyPrice: 1745, sellPrice: 16474,
+        profit: 659_109, distanceLy: 10,
+        commodities: [
+          { name: 'imperial slaves', units: 33, buyPrice: 1745, sellPrice: 16474, profit: 486_057 },
+          { name: 'battle weapons', units: 33, buyPrice: 648, sellPrice: 5892, profit: 173_052 },
+        ],
+      },
+      {
+        fromStationId: 2, toStationId: 3, fromSystem: 'LHS 20', fromStation: 'Beta',
+        toSystem: 'Wolf', toStation: 'Gamma',
+        commodity: 'tea', units: 40, buyPrice: 1300, sellPrice: 1800, profit: 50_000, distanceLy: 10,
+        commodities: [{ name: 'tea', units: 40, buyPrice: 1300, sellPrice: 1800, profit: 50_000 }],
+      },
+    ],
+  },
+};
+
+describe('commodity breakdown (v1.16)', () => {
+  it('RouteChecklist lists every commodity of a hop with amounts and prices', () => {
+    render(<RouteChecklist route={MULTI_ROUTE} onClear={() => {}} />);
+    expect(screen.getByTestId('hop-0-commodity-0').textContent).toBe(
+      '33 t imperial slaves · buy 1,745 → sell 16,474 · +486,057 cr'
+    );
+    expect(screen.getByTestId('hop-0-commodity-1').textContent).toBe(
+      '33 t battle weapons · buy 648 → sell 5,892 · +173,052 cr'
+    );
+    // The headline no longer implies 66 t of one good, and "+N more" is gone.
+    expect(screen.getByTestId('hop-0').textContent).toContain('66 t total');
+    expect(screen.getByTestId('hop-0').textContent).not.toContain('more');
+    expect(screen.queryByText(/\+\d+ more/)).toBeNull();
+  });
+
+  it('RouteChecklist renders one line for a single-commodity hop', () => {
+    render(<RouteChecklist route={MULTI_ROUTE} onClear={() => {}} />);
+    expect(screen.getByTestId('hop-1-commodity-0').textContent).toBe(
+      '40 t tea · buy 1,300 → sell 1,800 · +50,000 cr'
+    );
+    expect(screen.queryByTestId('hop-1-commodity-1')).toBeNull();
+  });
+
+  it('TradePlanner plan preview lists every commodity of a hop', async () => {
+    render(
+      <TradePlanner ship={SHIP} route={null}
+        onPlot={async () => ({ ok: true, result: { route: MULTI_ROUTE.route, etaMinutes: 12 } })}
+        onStart={() => {}} onClear={() => {}} />
+    );
+    fireEvent.click(screen.getByText('PLOT ROUTE'));
+    await screen.findByTestId('plan-hop-0');
+    expect(screen.getByTestId('plan-hop-0-commodity-0').textContent).toBe(
+      '33 t imperial slaves · buy 1,745 → sell 16,474 · +486,057 cr'
+    );
+    expect(screen.getByTestId('plan-hop-0-commodity-1').textContent).toBe(
+      '33 t battle weapons · buy 648 → sell 5,892 · +173,052 cr'
+    );
+    expect(screen.getByTestId('plan-hop-0').textContent).toContain('66 t total');
+    expect(screen.queryByText(/\+\d+ more/)).toBeNull();
+  });
+
+  it('renders hops without a breakdown exactly as before', () => {
+    render(<RouteChecklist route={ROUTE} onClear={() => {}} />);
+    expect(screen.getByTestId('hop-0').textContent).toContain('100t gold @ 9,000 → 10,000');
+    expect(screen.queryByTestId('hop-0-commodity-0')).toBeNull();
+  });
+});
+
 describe('TradePlanner pad-adjusted notice (v1.13)', () => {
   async function plotWith(padAdjusted: { rejectedStops: number; mode: 'large-pad' | 'truncated' }) {
     render(
@@ -1035,5 +1113,44 @@ describe('SellCargo (v1.15)', () => {
     fireEvent.change(screen.getAllByRole('textbox')[0], { target: { value: 'Tritium' } });
     fireEvent.click(screen.getByText('SEARCH'));
     expect(await screen.findByText(/No stations buying that within 100 ly/)).toBeTruthy();
+  });
+});
+
+// v1.16: the cockpit card showed "Sell 66t imperial slaves +1 more" — the other
+// goods were unrecoverable. It now lists every commodity in the current hop.
+describe('CockpitPanel commodity breakdown (v1.16)', () => {
+  const BREAKDOWN_ROUTE: ActiveRoute = {
+    currentHop: 0,
+    hopStatus: ['active'],
+    expectedProfit: 659_109,
+    actualProfit: 0,
+    route: {
+      totalProfit: 659_109, totalDistanceLy: 12,
+      hops: [{
+        fromStationId: 1, toStationId: 2, fromSystem: 'Ross 720', fromStation: 'Raleigh Orbital',
+        toSystem: 'VESPER-M4', toStation: 'Rothfuss Holdings',
+        commodity: 'imperial slaves +1 more', units: 66, buyPrice: 1745, sellPrice: 16474,
+        profit: 659_109, distanceLy: 12,
+        commodities: [
+          { name: 'imperial slaves', units: 33, buyPrice: 1745, sellPrice: 16474, profit: 486_057 },
+          { name: 'battle weapons', units: 33, buyPrice: 648, sellPrice: 5892, profit: 173_052 },
+        ],
+      }],
+    },
+  };
+
+  it('lists every commodity of the current hop instead of "+1 more"', () => {
+    render(<CockpitPanel ship={SHIP} route={BREAKDOWN_ROUTE} neutron={null} exploration={null} carrier={null} tourist={null} galaxy={null} colonisation={null} />);
+    const box = screen.getByTestId('cockpit-commodities');
+    expect(box.textContent).toContain('66t total');
+    expect(screen.getByTestId('cockpit-commodity-0').textContent).toBe('33t imperial slaves');
+    expect(screen.getByTestId('cockpit-commodity-1').textContent).toBe('33t battle weapons');
+    expect(box.textContent).not.toContain('more');
+  });
+
+  it('keeps the old single line for hops without a breakdown', () => {
+    render(<CockpitPanel ship={SHIP} route={ROUTE} neutron={null} exploration={null} carrier={null} tourist={null} galaxy={null} colonisation={null} />);
+    expect(screen.queryByTestId('cockpit-commodities')).toBeNull();
+    expect(screen.getByText(/Sell 100t tea/)).toBeTruthy();
   });
 });
