@@ -117,7 +117,6 @@ export function App() {
             ship={ship}
             route={route}
             onPlot={(req) => api.plotTrade(req)}
-            onCopy={(t) => void api.copyText(t)}
             onStart={(r: TradeRoute) => void api.startRoute(r)}
             onClear={() => void api.clearRoute()}
           />
