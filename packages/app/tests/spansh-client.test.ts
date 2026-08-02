@@ -109,6 +109,54 @@ describe('SpanshClient', () => {
     expect(hop.units).toBe(rawHop.commodities.reduce((s: number, c: any) => s + c.amount, 0));
     expect(hop.profit).toBe(rawHop.commodities.reduce((s: number, c: any) => s + c.total_profit, 0));
   });
+
+  // v1.16: the summary string kept only the lead good ("silver +4 more") and the
+  // rest were unrecoverable in the UI. Every entry now survives mapping.
+  it('exposes every commodity of a multi-commodity hop as a breakdown', async () => {
+    const { fn } = fakeFetch({
+      '/trade/route': () => ({ body: fixture('trade-route-submit.json') }),
+      '/results/': () => ({ body: fixture('trade-route-result.json') }),
+    });
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    const result = await client.plotTrade(REQ);
+    const raw = fixture('trade-route-result.json').result;
+    const multiIdx = raw.findIndex((h: any) => (h.commodities ?? []).length > 1);
+    const rawHop = raw[multiIdx];
+    const hop = result.route.hops[multiIdx];
+    // Order and values mirror the raw response exactly, names lowercased to match
+    // the existing `commodity` convention.
+    expect(hop.commodities).toEqual(
+      rawHop.commodities.map((c: any) => ({
+        name: String(c.name).toLowerCase(),
+        units: c.amount,
+        buyPrice: c.source_commodity.buy_price,
+        sellPrice: c.destination_commodity.sell_price,
+        profit: c.total_profit,
+      }))
+    );
+    // Grounded in the fixture: the 5-good hop into Beacon Light Of The Avali.
+    expect(hop.commodities!.map((c) => c.name)).toEqual([
+      'gold', 'silver', 'beryllium', 'gallium', 'indium',
+    ]);
+    expect(hop.commodities![0]).toEqual({
+      name: 'gold', units: 9, buyPrice: 4434, sellPrice: 56526, profit: 468828,
+    });
+    expect(hop.commodities!.reduce((s, c) => s + c.units, 0)).toBe(hop.units);
+    expect(hop.commodities!.reduce((s, c) => s + c.profit, 0)).toBe(hop.profit);
+  });
+
+  it('gives a single-commodity hop a one-entry breakdown', async () => {
+    const { fn } = fakeFetch({
+      '/trade/route': () => ({ body: fixture('trade-route-submit.json') }),
+      '/results/': () => ({ body: fixture('trade-route-result.json') }),
+    });
+    const client = new SpanshClient({ fetchFn: fn, pollMs: 1 });
+    const result = await client.plotTrade(REQ);
+    // Fixture hop 1: 50 t of Tea, buy 1,175 -> sell 2,232, +52,850 cr.
+    expect(result.route.hops[0].commodities).toEqual([
+      { name: 'tea', units: 50, buyPrice: 1175, sellPrice: 2232, profit: 52850 },
+    ]);
+  });
 });
 
 describe('pad-size verification (v1.11)', () => {

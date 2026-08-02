@@ -345,6 +345,8 @@ export class SpanshClient {
       const extra = commodities.length - 1;
       // Convention: label + prices describe the LEAD commodity; units and profit
       // cover the whole hop (Spansh routes often fill the hold with several goods).
+      // v1.16: `commodities` carries every entry so the UI can list them all —
+      // the lead-only summary above stays for backward compatibility.
       return {
         fromStationId: 0,
         toStationId: 0,
@@ -358,6 +360,15 @@ export class SpanshClient {
         sellPrice: top?.destination_commodity?.sell_price ?? 0,
         profit: hopProfit,
         distanceLy: h.distance ?? 0,
+        commodities: commodities.length
+          ? commodities.map((c) => ({
+              name: String(c.name ?? '').toLowerCase(),
+              units: c.amount ?? 0,
+              buyPrice: c.source_commodity?.buy_price ?? 0,
+              sellPrice: c.destination_commodity?.sell_price ?? 0,
+              profit: c.total_profit ?? 0,
+            }))
+          : undefined,
       };
     });
     const route: TradeRoute = {

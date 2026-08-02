@@ -36,6 +36,21 @@ export interface Hop {
    */
   padFit?: boolean;
   pads?: { small: number; medium: number; large: number };
+  /**
+   * v1.16 per-commodity breakdown (OPTIONAL — host-populated on Spansh trade
+   * plots only; engine-planned hops omit it because they always carry exactly
+   * one commodity, already described by the fields above). When present it
+   * covers the WHOLE hop — `units` sums to the hop's `units` and `profit` to
+   * the hop's `profit` — whereas `commodity`/`buyPrice`/`sellPrice` describe
+   * only the lead entry. undefined means "no breakdown available", not "empty".
+   */
+  commodities?: Array<{
+    name: string;
+    units: number;
+    buyPrice: number;
+    sellPrice: number;
+    profit: number;
+  }>;
 }
 
 const PAD_RANK: Record<PadSize, number> = { S: 1, M: 2, L: 3 };
