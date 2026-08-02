@@ -1154,3 +1154,31 @@ describe('CockpitPanel commodity breakdown (v1.16)', () => {
     expect(screen.getByText(/Sell 100t tea/)).toBeTruthy();
   });
 });
+
+// v1.17: trade routes never auto-copy (a travel route may own the clipboard),
+// so the destination system needs an explicit Copy button — previously you had
+// to highlight the name and Ctrl-C by hand.
+describe('trade destination copy buttons (v1.17)', () => {
+  it('copies the hop destination system from the checklist', () => {
+    const copied: string[] = [];
+    render(<RouteChecklist route={ROUTE} onClear={() => {}} onCopy={(t) => copied.push(t)} />);
+    fireEvent.click(screen.getByTestId('hop-1-copy'));
+    expect(copied).toEqual(['Wolf']); // destination SYSTEM only — what the galaxy map search wants
+  });
+
+  it('copies the next destination from the cockpit card', () => {
+    const copied: string[] = [];
+    render(
+      <CockpitPanel ship={SHIP} route={ROUTE} neutron={null} exploration={null} carrier={null}
+        tourist={null} galaxy={null} colonisation={null} onCopy={(t) => copied.push(t)} />
+    );
+    fireEvent.click(screen.getByTestId('cockpit-copy'));
+    expect(copied).toEqual(['Wolf']);
+  });
+
+  it('renders without an onCopy handler', () => {
+    render(<RouteChecklist route={ROUTE} onClear={() => {}} />);
+    fireEvent.click(screen.getByTestId('hop-0-copy')); // no throw
+    expect(screen.getByTestId('hop-0-copy')).toBeTruthy();
+  });
+});

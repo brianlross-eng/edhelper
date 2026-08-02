@@ -25,9 +25,11 @@ export interface TradePlannerProps {
   onPlot: (req: PlotTradeRequest) => Promise<PlotTradeResponse>;
   onStart: (route: TradeRoute) => void;
   onClear: () => void;
+  /** v1.17: copy a destination system to the clipboard. */
+  onCopy?: (text: string) => void;
 }
 
-export function TradePlanner({ ship, route, onPlot, onStart, onClear }: TradePlannerProps) {
+export function TradePlanner({ ship, route, onPlot, onStart, onClear, onCopy }: TradePlannerProps) {
   const [fromSystem, setFromSystem] = useState('');
   const [fromStation, setFromStation] = useState('');
   const [cargo, setCargo] = useState('');
@@ -95,7 +97,7 @@ export function TradePlanner({ ship, route, onPlot, onStart, onClear }: TradePla
     setBusy(false);
   }
 
-  if (route) return <RouteChecklist route={route} onClear={onClear} />;
+  if (route) return <RouteChecklist route={route} onClear={onClear} onCopy={onCopy} />;
 
   return (
     <div>
