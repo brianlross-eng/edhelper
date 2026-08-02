@@ -1155,30 +1155,31 @@ describe('CockpitPanel commodity breakdown (v1.16)', () => {
   });
 });
 
-// v1.17: trade routes never auto-copy (a travel route may own the clipboard),
-// so the destination system needs an explicit Copy button — previously you had
-// to highlight the name and Ctrl-C by hand.
-describe('trade destination copy buttons (v1.17)', () => {
-  it('copies the hop destination system from the checklist', () => {
-    const copied: string[] = [];
-    render(<RouteChecklist route={ROUTE} onClear={() => {}} onCopy={(t) => copied.push(t)} />);
-    fireEvent.click(screen.getByTestId('hop-1-copy'));
-    expect(copied).toEqual(['Wolf']); // destination SYSTEM only — what the galaxy map search wants
-  });
-
-  it('copies the next destination from the cockpit card', () => {
+// v1.17: the trade route never auto-copies (a travel route may own the
+// clipboard), so the destination needs an explicit Copy button. It lives ONLY
+// on the cockpit card — per-hop buttons in the checklist were redundant.
+describe('trade destination copy (v1.17)', () => {
+  it('copies the next destination system from the cockpit card', () => {
     const copied: string[] = [];
     render(
       <CockpitPanel ship={SHIP} route={ROUTE} neutron={null} exploration={null} carrier={null}
         tourist={null} galaxy={null} colonisation={null} onCopy={(t) => copied.push(t)} />
     );
     fireEvent.click(screen.getByTestId('cockpit-copy'));
-    expect(copied).toEqual(['Wolf']);
+    expect(copied).toEqual(['Wolf']); // destination SYSTEM only — what the galaxy map search wants
   });
 
-  it('renders without an onCopy handler', () => {
+  it('keeps the checklist free of copy buttons', () => {
     render(<RouteChecklist route={ROUTE} onClear={() => {}} />);
-    fireEvent.click(screen.getByTestId('hop-0-copy')); // no throw
-    expect(screen.getByTestId('hop-0-copy')).toBeTruthy();
+    expect(screen.queryByText('Copy')).toBeNull();
+  });
+
+  it('renders the cockpit card without an onCopy handler', () => {
+    render(
+      <CockpitPanel ship={SHIP} route={ROUTE} neutron={null} exploration={null} carrier={null}
+        tourist={null} galaxy={null} colonisation={null} />
+    );
+    fireEvent.click(screen.getByTestId('cockpit-copy')); // no throw
+    expect(screen.getByTestId('cockpit-copy')).toBeTruthy();
   });
 });
