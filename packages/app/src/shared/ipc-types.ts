@@ -498,6 +498,8 @@ export interface EdhelperApi {
   anchorGalaxyRoute(index: number): Promise<ActiveGalaxyRoute | null>;
   onGalaxyUpdated(cb: (r: ActiveGalaxyRoute | null) => void): () => void;
   searchSellCargo(req: SellCargoRequest): Promise<SellCargoResponse>;
+  /** v1.17: put text on the system clipboard (trade-route Copy buttons). */
+  copyText(text: string): Promise<void>;
   plotColonisation(req: PlotColonisationRequest): Promise<PlotColonisationResponse>;
   startColonisationRoute(route: ColonisationRoute): Promise<ActiveColonisationRoute>;
   clearColonisationRoute(): Promise<void>;

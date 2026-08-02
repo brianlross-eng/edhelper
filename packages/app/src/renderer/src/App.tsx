@@ -75,7 +75,7 @@ export function App() {
 
   return (
     <div className="app-grid">
-      <CockpitPanel ship={ship} route={route} neutron={neutron} exploration={exploration} carrier={carrier} tourist={tourist} galaxy={galaxy} colonisation={colonisation} />
+      <CockpitPanel ship={ship} route={route} neutron={neutron} exploration={exploration} carrier={carrier} tourist={tourist} galaxy={galaxy} colonisation={colonisation} onCopy={(t) => void api.copyText(t)} />
       <main className="main-panel">
         <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
           <button className={`tool-tab ${tool === 'trade' ? 'active' : ''}`} onClick={() => setTool('trade')}>
@@ -117,6 +117,7 @@ export function App() {
             ship={ship}
             route={route}
             onPlot={(req) => api.plotTrade(req)}
+            onCopy={(t) => void api.copyText(t)}
             onStart={(r: TradeRoute) => void api.startRoute(r)}
             onClear={() => void api.clearRoute()}
           />

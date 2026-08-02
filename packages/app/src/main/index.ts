@@ -261,6 +261,14 @@ app.whenReady().then(() => {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
   });
+  // v1.17: manual copy for the TRADE route. Travel routes own the clipboard
+  // automatically (they auto-copy on jump), but trade coexists with one of
+  // them, so trade copying stays explicitly user-driven — a button press can
+  // never fight an active travel route for the clipboard.
+  ipcMain.handle('clipboard:write', (_e, text: string) => {
+    clipboard.writeText(String(text ?? ''));
+    return null;
+  });
   ipcMain.handle('sell:search', async (_e, req) => {
     try {
       return { ok: true, result: await engine.request('sellCargo', req) };

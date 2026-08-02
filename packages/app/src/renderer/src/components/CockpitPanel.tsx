@@ -1,7 +1,9 @@
 import type { ShipState } from '@edhelper/engine';
 import type { ActiveRoute, ActiveNeutronRoute, ActiveExplorationRoute, ActiveFleetCarrierRoute, ActiveTouristRoute, ActiveGalaxyRoute, ActiveColonisationRoute } from '../../../shared/ipc-types';
 
-export function CockpitPanel({ ship, route, neutron, exploration, carrier, tourist, galaxy, colonisation }: { ship: ShipState | null; route: ActiveRoute | null; neutron: ActiveNeutronRoute | null; exploration: ActiveExplorationRoute | null; carrier: ActiveFleetCarrierRoute | null; tourist: ActiveTouristRoute | null; galaxy: ActiveGalaxyRoute | null; colonisation: ActiveColonisationRoute | null }) {
+export function CockpitPanel({ ship, route, neutron, exploration, carrier, tourist, galaxy, colonisation, onCopy }: { ship: ShipState | null; route: ActiveRoute | null; neutron: ActiveNeutronRoute | null; exploration: ActiveExplorationRoute | null; carrier: ActiveFleetCarrierRoute | null; tourist: ActiveTouristRoute | null; galaxy: ActiveGalaxyRoute | null; colonisation: ActiveColonisationRoute | null;
+  /** v1.17: copy the next trade destination to the clipboard. */
+  onCopy?: (text: string) => void }) {
   const cargoPct = ship?.cargoCapacity ? Math.min(100, ((ship.cargoUsed ?? 0) / ship.cargoCapacity) * 100) : 0;
   const nextHop = route && route.currentHop < route.route.hops.length ? route.route.hops[route.currentHop] : null;
   return (
@@ -37,6 +39,15 @@ export function CockpitPanel({ ship, route, neutron, exploration, carrier, touri
           <>
             <div className="muted">Hop {route.currentHop + 1} of {route.route.hops.length}</div>
             <div className="next-hop">▶ {nextHop.toSystem} / {nextHop.toStation}</div>
+            {/* v1.17: paste straight into the galaxy map search — no highlight+Ctrl-C. */}
+            <button
+              className="btn secondary"
+              data-testid="cockpit-copy"
+              title={`Copy ${nextHop.toSystem} for the galaxy map`}
+              onClick={() => onCopy?.(nextHop.toSystem)}
+            >
+              Copy destination
+            </button>
             {/* v1.16: list every good in the hop. The old single line read
                 "Sell 66t imperial slaves +1 more" — the other commodities were
                 unrecoverable anywhere in the app. */}

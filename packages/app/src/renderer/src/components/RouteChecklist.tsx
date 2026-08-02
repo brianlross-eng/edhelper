@@ -71,7 +71,13 @@ export function HopCommodities({ hop, testIdPrefix }: { hop: Hop; testIdPrefix: 
   );
 }
 
-export function RouteChecklist({ route, onClear }: { route: ActiveRoute; onClear: () => void }) {
+export function RouteChecklist({ route, onClear, onCopy }: {
+  route: ActiveRoute;
+  onClear: () => void;
+  /** v1.17: puts a destination system on the clipboard (trade routes never
+   *  auto-copy — a travel route may own the clipboard concurrently). */
+  onCopy?: (text: string) => void;
+}) {
   const anyAnnotated = hasPadAnnotations(route.route.hops);
   return (
     <div>
@@ -93,6 +99,14 @@ export function RouteChecklist({ route, onClear }: { route: ActiveRoute; onClear
             </span>
             <span className="muted">{hopSummary(hop)}</span>
             <span className="profit">+{hop.profit.toLocaleString()} cr</span>
+            <button
+              className="btn secondary"
+              data-testid={`hop-${i}-copy`}
+              title={`Copy ${hop.toSystem} for the galaxy map`}
+              onClick={() => onCopy?.(hop.toSystem)}
+            >
+              Copy
+            </button>
           </div>
         );
         // No breakdown (engine-planned hop): render exactly as before, bare row.
