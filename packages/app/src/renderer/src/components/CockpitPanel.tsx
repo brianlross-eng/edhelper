@@ -37,7 +37,21 @@ export function CockpitPanel({ ship, route, neutron, exploration, carrier, touri
           <>
             <div className="muted">Hop {route.currentHop + 1} of {route.route.hops.length}</div>
             <div className="next-hop">▶ {nextHop.toSystem} / {nextHop.toStation}</div>
-            <div className="muted">Sell {nextHop.units}t {nextHop.commodity}</div>
+            {/* v1.16: list every good in the hop. The old single line read
+                "Sell 66t imperial slaves +1 more" — the other commodities were
+                unrecoverable anywhere in the app. */}
+            {nextHop.commodities?.length ? (
+              <div data-testid="cockpit-commodities">
+                <div className="muted">Sell {nextHop.units}t total</div>
+                {nextHop.commodities.map((c, i) => (
+                  <div key={c.name} className="muted" data-testid={`cockpit-commodity-${i}`} style={{ paddingLeft: 10 }}>
+                    {c.units}t {c.name}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="muted">Sell {nextHop.units}t {nextHop.commodity}</div>
+            )}
           </>
         ) : (
           <div data-testid="route-complete">

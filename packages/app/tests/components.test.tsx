@@ -1115,3 +1115,42 @@ describe('SellCargo (v1.15)', () => {
     expect(await screen.findByText(/No stations buying that within 100 ly/)).toBeTruthy();
   });
 });
+
+// v1.16: the cockpit card showed "Sell 66t imperial slaves +1 more" — the other
+// goods were unrecoverable. It now lists every commodity in the current hop.
+describe('CockpitPanel commodity breakdown (v1.16)', () => {
+  const BREAKDOWN_ROUTE: ActiveRoute = {
+    currentHop: 0,
+    hopStatus: ['active'],
+    expectedProfit: 659_109,
+    actualProfit: 0,
+    route: {
+      totalProfit: 659_109, totalDistanceLy: 12,
+      hops: [{
+        fromStationId: 1, toStationId: 2, fromSystem: 'Ross 720', fromStation: 'Raleigh Orbital',
+        toSystem: 'VESPER-M4', toStation: 'Rothfuss Holdings',
+        commodity: 'imperial slaves +1 more', units: 66, buyPrice: 1745, sellPrice: 16474,
+        profit: 659_109, distanceLy: 12,
+        commodities: [
+          { name: 'imperial slaves', units: 33, buyPrice: 1745, sellPrice: 16474, profit: 486_057 },
+          { name: 'battle weapons', units: 33, buyPrice: 648, sellPrice: 5892, profit: 173_052 },
+        ],
+      }],
+    },
+  };
+
+  it('lists every commodity of the current hop instead of "+1 more"', () => {
+    render(<CockpitPanel ship={SHIP} route={BREAKDOWN_ROUTE} neutron={null} exploration={null} carrier={null} tourist={null} galaxy={null} colonisation={null} />);
+    const box = screen.getByTestId('cockpit-commodities');
+    expect(box.textContent).toContain('66t total');
+    expect(screen.getByTestId('cockpit-commodity-0').textContent).toBe('33t imperial slaves');
+    expect(screen.getByTestId('cockpit-commodity-1').textContent).toBe('33t battle weapons');
+    expect(box.textContent).not.toContain('more');
+  });
+
+  it('keeps the old single line for hops without a breakdown', () => {
+    render(<CockpitPanel ship={SHIP} route={ROUTE} neutron={null} exploration={null} carrier={null} tourist={null} galaxy={null} colonisation={null} />);
+    expect(screen.queryByTestId('cockpit-commodities')).toBeNull();
+    expect(screen.getByText(/Sell 100t tea/)).toBeTruthy();
+  });
+});
