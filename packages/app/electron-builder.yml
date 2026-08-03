@@ -33,7 +33,14 @@ win:
       arch: [x64]
 nsis:
   oneClick: false
+  # PER-USER ONLY, never machine-wide. With elevation allowed the assisted
+  # installer offers "install for all users", which installs to Program Files
+  # and registers under HKLM *alongside* an existing per-user copy instead of
+  # upgrading it — that produced two parallel ED Helpers (1.0.7 per-user +
+  # 1.0.8 all-users) on the author's PC. Per-user also means auto-update never
+  # needs a UAC prompt.
   perMachine: false
+  allowElevation: false
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   artifactName: ED-Helper-Setup-${version}.${ext}
