@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, ipcMain } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, shell } from 'electron';
 import { join } from 'node:path';
 import { DEFAULT_JOURNAL_DIR, JournalWatcher } from '@edhelper/engine';
 import type { JournalEvent, ShipState, TradeRoute } from '@edhelper/engine';
@@ -8,6 +8,7 @@ import { NeutronTracker } from './neutron-tracker.js';
 import { engineSpawnSpec } from './engine-spawn.js';
 import { WaypointTracker } from './waypoint-tracker.js';
 import { wireAutoUpdate } from './updater.js';
+import { aboutDetail, buildMenuTemplate, REPO_URL } from './menu.js';
 import { activateProfile, deleteProfile, loadSettings, sanitizeProfile, saveSettings, upsertProfile } from './settings.js';
 import { deriveFuelModel } from './ship-model.js';
 import type {
@@ -313,6 +314,33 @@ app.whenReady().then(() => {
       throw err;
     }
   });
+
+  const aboutInfo = {
+    version: app.getVersion(),
+    electron: process.versions.electron,
+    chrome: process.versions.chrome,
+    node: process.versions.node,
+  };
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate(
+      buildMenuTemplate({
+        info: aboutInfo,
+        onAbout: () =>
+          void dialog.showMessageBox({
+            type: 'info',
+            title: 'About ED Helper',
+            message: 'ED Helper',
+            detail: aboutDetail(aboutInfo),
+            buttons: ['OK', 'Open GitHub'],
+            defaultId: 0,
+            cancelId: 0,
+          }).then((r) => {
+            if (r.response === 1) void shell.openExternal(REPO_URL);
+          }),
+        onRepo: () => void shell.openExternal(REPO_URL),
+      })
+    )
+  );
 
   createWindow();
   wireAutoUpdate().catch((err) => console.error('[updater] init failed:', err));
