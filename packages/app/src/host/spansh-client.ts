@@ -217,7 +217,7 @@ export class SpanshClient {
       allow_prohibited: '0',
       allow_player_owned: req.allowCarriers ? '1' : '0',
       allow_restricted_access: '0',
-      unique: '0',
+      unique: req.uniqueStations ? '1' : '0',
       permit: '1',
     });
     const submit = await this.request('/trade/route', {

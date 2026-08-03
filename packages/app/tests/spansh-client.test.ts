@@ -159,6 +159,21 @@ describe('SpanshClient', () => {
   });
 });
 
+describe('unique stations (v1.18)', () => {
+  it('maps uniqueStations onto the Spansh unique flag', async () => {
+    for (const [flag, expected] of [[true, 'unique=1'], [false, 'unique=0']] as const) {
+      const { fn, calls } = fakeFetch({
+        '/trade/route': () => ({ body: fixture('trade-route-submit.json') }),
+        '/results/': () => ({ body: fixture('trade-route-result.json') }),
+        '/stations/search': () => ({ body: { results: [] } }),
+      });
+      await new SpanshClient({ fetchFn: fn, pollMs: 1 }).plotTrade({ ...REQ, uniqueStations: flag });
+      const submit = calls.find((c) => c.url.includes('/trade/route'))!;
+      expect(String(submit.init.body)).toContain(expected);
+    }
+  });
+});
+
 describe('pad-size verification (v1.11)', () => {
   // Real record shape from the 2026-07-27 probe (Abraham Lincoln, S/M/L = 8/9/5),
   // re-labeled per station under test.
