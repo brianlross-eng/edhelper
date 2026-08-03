@@ -34,6 +34,14 @@ and download **one** of:
 To uninstall: Windows Settings → Apps → ED Helper. Your settings and ship
 profiles are kept in `%APPDATA%\ED Helper\` and survive uninstalls and updates.
 
+> **Seeing two copies of ED Helper?** Installers before v1.0.10 offered an
+> "install for all users" option, and choosing it during an update creates a
+> *second* install in `C:\Program Files\ED Helper` instead of upgrading the
+> per-user one in `%LOCALAPPDATA%\Programs\ED Helper`. Uninstall the Program
+> Files copy (Settings → Apps) and keep the per-user one — it auto-updates
+> without UAC prompts. Your settings are in `%APPDATA%` and are untouched
+> either way. v1.0.10+ installs per-user only.
+
 ## 🚀 Run
 
 1. **Start the app** (before or after launching Elite Dangerous — either
