@@ -38,6 +38,7 @@ export function TradePlanner({ ship, route, onPlot, onStart, onClear }: TradePla
   const [hops, setHops] = useState('4');
   const [surface, setSurface] = useState(false);
   const [carriers, setCarriers] = useState(false);
+  const [uniqueStations, setUniqueStations] = useState(false);
   const [maxAge, setMaxAge] = useState('');
   const [result, setResult] = useState<PlotTradeResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -76,6 +77,7 @@ export function TradePlanner({ ship, route, onPlot, onStart, onClear }: TradePla
       maxHops: Number(hops) || 4,
       allowSurface: surface,
       allowCarriers: carriers,
+      uniqueStations,
       maxDataAgeDays: Number.isFinite(Number(maxAge)) && maxAge.trim() !== '' ? Number(maxAge) : undefined,
       shipJumpRange: ship?.maxJumpRange,
     };
@@ -158,6 +160,14 @@ export function TradePlanner({ ship, route, onPlot, onStart, onClear }: TradePla
         </label>
         <label>
           <input type="checkbox" checked={carriers} onChange={(e) => setCarriers(e.target.checked)} /> Fleet carriers
+        </label>
+        <label title="Every station appears at most once — stops the route bouncing between two markets faster than they restock">
+          <input
+            type="checkbox"
+            data-testid="unique-stations"
+            checked={uniqueStations}
+            onChange={(e) => setUniqueStations(e.target.checked)}
+          /> No repeat stations
         </label>
         <button className="btn" onClick={() => void plot()} disabled={busy}>
           {busy ? 'Plotting…' : 'PLOT ROUTE'}

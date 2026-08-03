@@ -11,6 +11,7 @@ import type {
   ColonisationRoute, ActiveColonisationRoute, PlotColonisationRequest,
   CommunityGoal,
   FuelModelFields, ShipProfile, ShipProfilesState,
+  PlotTradeRequest,
   SellCargoRequest, SellCargoRow,
 } from '../src/shared/ipc-types';
 import { CockpitPanel } from '../src/renderer/src/components/CockpitPanel';
@@ -1181,5 +1182,26 @@ describe('trade destination copy (v1.17)', () => {
     );
     fireEvent.click(screen.getByTestId('cockpit-copy')); // no throw
     expect(screen.getByTestId('cockpit-copy')).toBeTruthy();
+  });
+});
+
+// v1.18: without Spansh's `unique` flag a route can degenerate into an
+// A-B-A-B shuttle between two markets — live-verified from Raleigh Orbital.
+describe('TradePlanner no-repeat-stations option (v1.18)', () => {
+  it('defaults off and sends uniqueStations when ticked', async () => {
+    let seen: PlotTradeRequest | null = null;
+    render(
+      <TradePlanner ship={SHIP} route={null}
+        onPlot={async (req) => { seen = req; return { ok: false, error: 'x' }; }}
+        onStart={() => {}} onClear={() => {}} />
+    );
+    fireEvent.click(screen.getByText('PLOT ROUTE'));
+    await screen.findByText('x');
+    expect(seen!.uniqueStations).toBe(false);
+
+    fireEvent.click(screen.getByTestId('unique-stations'));
+    fireEvent.click(screen.getByText('PLOT ROUTE'));
+    await screen.findByText('x');
+    expect(seen!.uniqueStations).toBe(true);
   });
 });

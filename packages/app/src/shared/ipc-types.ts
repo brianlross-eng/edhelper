@@ -19,6 +19,9 @@ export interface PlotTradeRequest {
   maxHops: number;
   allowSurface: boolean;
   allowCarriers: boolean;
+  /** v1.18: Spansh's `unique` flag — every station appears at most once, so the
+   *  route can't degenerate into an A-B-A-B shuttle that outruns restocking. */
+  uniqueStations?: boolean;
   maxDataAgeDays?: number;
   shipJumpRange?: number;
 }
