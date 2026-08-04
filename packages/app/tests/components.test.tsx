@@ -1205,3 +1205,80 @@ describe('TradePlanner no-repeat-stations option (v1.18)', () => {
     expect(seen!.uniqueStations).toBe(true);
   });
 });
+
+// v1.21: prefill used to fill blanks ONLY, so after a route finished the form
+// still showed the system/station/credits you set out with — the commander had
+// to switch tabs (unmounting the view) to get current values.
+describe('TradePlanner start fields follow the ship (v1.21)', () => {
+  const AT_START: ShipState = {
+    ...SHIP, system: 'Ross 720', station: 'Raleigh Orbital', credits: 6_327_132,
+  };
+  const AFTER_RUN: ShipState = {
+    ...SHIP, system: 'VESPER-M4', station: 'Rothfuss Holdings', credits: 11_844_152,
+  };
+  const plannerFor = (ship: ShipState | null) => (
+    <TradePlanner ship={ship} route={null}
+      onPlot={async () => ({ ok: false as const, error: 'x' })}
+      onStart={() => {}} onClear={() => {}} />
+  );
+
+  it('updates start system, station and capital when the ship moves', () => {
+    const { rerender } = render(plannerFor(AT_START));
+    expect(screen.getByDisplayValue('Ross 720')).toBeTruthy();
+    expect(screen.getByDisplayValue('6327132')).toBeTruthy();
+
+    rerender(plannerFor(AFTER_RUN));
+    expect(screen.getByDisplayValue('VESPER-M4')).toBeTruthy();
+    expect(screen.getByDisplayValue('Rothfuss Holdings')).toBeTruthy();
+    expect(screen.getByDisplayValue('11844152')).toBeTruthy();
+    expect(screen.queryByDisplayValue('Ross 720')).toBeNull();
+  });
+
+  it('never overwrites a value the commander typed', () => {
+    const { rerender } = render(plannerFor(AT_START));
+    fireEvent.change(screen.getByDisplayValue('Ross 720'), { target: { value: 'Shinrarta Dezhra' } });
+    rerender(plannerFor(AFTER_RUN));
+    expect(screen.getByDisplayValue('Shinrarta Dezhra')).toBeTruthy();
+  });
+
+  it('leaves a field the commander cleared empty', () => {
+    const { rerender } = render(plannerFor(AT_START));
+    fireEvent.change(screen.getByDisplayValue('6327132'), { target: { value: '' } });
+    // Mid-edit the field must stay blank, not snap back to the live balance.
+    expect(screen.queryByDisplayValue('6327132')).toBeNull();
+    rerender(plannerFor(AFTER_RUN));
+    expect(screen.queryByDisplayValue('11844152')).toBeNull();
+  });
+
+  // System and station describe one market; following them apart would pair a
+  // new system with the station the ship just left.
+  it('freezes the station when the start system is edited', () => {
+    const { rerender } = render(plannerFor(AT_START));
+    fireEvent.change(screen.getByDisplayValue('Ross 720'), { target: { value: 'Deciat' } });
+    rerender(plannerFor(AFTER_RUN));
+    expect(screen.getByDisplayValue('Raleigh Orbital')).toBeTruthy();
+    expect(screen.queryByDisplayValue('Rothfuss Holdings')).toBeNull();
+  });
+
+  it('keeps the last docked system and station while in flight', () => {
+    const { rerender } = render(plannerFor(AT_START));
+    rerender(plannerFor({ ...AFTER_RUN, docked: false, station: undefined }));
+    expect(screen.getByDisplayValue('Ross 720')).toBeTruthy();
+    expect(screen.getByDisplayValue('Raleigh Orbital')).toBeTruthy();
+    // Credits are position-independent, so they keep following.
+    expect(screen.getByDisplayValue('11844152')).toBeTruthy();
+  });
+
+  it('follows free hold space, not total capacity', () => {
+    const { rerender } = render(plannerFor({ ...AT_START, cargoCapacity: 192, cargoUsed: 96 }));
+    expect(screen.getByDisplayValue('96')).toBeTruthy();
+    rerender(plannerFor({ ...AT_START, cargoCapacity: 192, cargoUsed: 32 }));
+    expect(screen.getByDisplayValue('160')).toBeTruthy();
+  });
+
+  // A full hold has no free space; "0" would only fail validation on PLOT.
+  it('does not fill cargo with zero when the hold is full', () => {
+    render(plannerFor({ ...AT_START, cargoCapacity: 192, cargoUsed: 192 }));
+    expect(screen.queryByDisplayValue('0')).toBeNull();
+  });
+});

@@ -33,7 +33,9 @@ export function TradePlanner({ ship, route, onPlot, onStart, onClear }: TradePla
   const [cargo, setCargo] = useState('');
   const [capital, setCapital] = useState('');
   const [pad, setPad] = useState<PadSize>('M');
-  const [padTouched, setPadTouched] = useState(false);
+  const [touched, setTouched] = useState({
+    system: false, station: false, cargo: false, capital: false, pad: false,
+  });
   const [range, setRange] = useState('40');
   const [hops, setHops] = useState('4');
   const [surface, setSurface] = useState(false);
@@ -49,19 +51,32 @@ export function TradePlanner({ ship, route, onPlot, onStart, onClear }: TradePla
   const cargoUsed = ship?.cargoUsed ?? 0;
   const freeSpace = ship?.cargoCapacity ? Math.max(0, ship.cargoCapacity - cargoUsed) : 0;
 
-  // Pre-fill empty fields from the live ship — the "less data entry" feature.
+  /* v1.21: the start fields FOLLOW the live ship until the commander edits
+   * them. The original prefill only filled blanks, so after finishing a route
+   * the form still showed the system, station and credit balance you set out
+   * with — plotting a follow-up route silently used a stale start point.
+   * Ownership is tracked per field the way `pad` always has been: the first
+   * edit stops that field following, and nothing auto-fills it again. */
   useEffect(() => {
     if (!ship) return;
-    setFromSystem((v) => (v === '' && ship.system ? ship.system : v));
-    setFromStation((v) => (v === '' && ship.station ? ship.station : v));
-    setCargo((v) =>
-      v === '' && ship.cargoCapacity
-        ? String((ship.cargoUsed ?? 0) > 0 ? Math.max(0, ship.cargoCapacity - (ship.cargoUsed ?? 0)) : ship.cargoCapacity)
-        : v
-    );
-    setCapital((v) => (v === '' && ship.credits !== undefined ? String(ship.credits) : v));
-    if (!padTouched && ship.padSize) setPad(ship.padSize);
-  }, [ship, padTouched]);
+    /* System and station move as a PAIR, and only while docked. An undocked
+     * ship reports a system but no station, so following them independently
+     * would pair a new system with the previous system's station — a market
+     * that doesn't exist, which Spansh answers with an empty route rather
+     * than an error. Editing either field freezes both. */
+    if (ship.docked && ship.system && ship.station && !touched.system && !touched.station) {
+      setFromSystem(ship.system);
+      setFromStation(ship.station);
+    }
+    // Zero free space would fill in "0" and fail validation; leave it alone.
+    if (!touched.cargo && freeSpace > 0) setCargo(String(freeSpace));
+    if (!touched.capital && ship.credits !== undefined) setCapital(String(ship.credits));
+    if (!touched.pad && ship.padSize) setPad(ship.padSize);
+  }, [ship, touched, freeSpace]);
+
+  function touch(field: keyof typeof touched) {
+    setTouched((t) => (t[field] ? t : { ...t, [field]: true }));
+  }
 
   async function plot() {
     setBusy(true);
@@ -104,19 +119,19 @@ export function TradePlanner({ ship, route, onPlot, onStart, onClear }: TradePla
       <div className="form-grid">
         <div className="field">
           <label>Start system</label>
-          <input value={fromSystem} onChange={(e) => setFromSystem(e.target.value)} />
+          <input value={fromSystem} onChange={(e) => { touch('system'); setFromSystem(e.target.value); }} />
         </div>
         <div className="field">
           <label>Start station</label>
-          <input value={fromStation} onChange={(e) => setFromStation(e.target.value)} />
+          <input value={fromStation} onChange={(e) => { touch('station'); setFromStation(e.target.value); }} />
         </div>
         <div className="field">
           <label>Cargo (t)</label>
-          <input value={cargo} onChange={(e) => setCargo(e.target.value)} />
+          <input value={cargo} onChange={(e) => { touch('cargo'); setCargo(e.target.value); }} />
         </div>
         <div className="field">
           <label>Capital (cr)</label>
-          <input value={capital} onChange={(e) => setCapital(e.target.value)} />
+          <input value={capital} onChange={(e) => { touch('capital'); setCapital(e.target.value); }} />
         </div>
         <div className="field">
           <label>Pad size</label>
@@ -124,7 +139,7 @@ export function TradePlanner({ ship, route, onPlot, onStart, onClear }: TradePla
             value={pad}
             onChange={(e) => {
               setPad(e.target.value as PadSize);
-              setPadTouched(true);
+              touch('pad');
             }}
           >
             <option value="S">Small</option>
