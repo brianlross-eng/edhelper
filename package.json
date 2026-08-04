@@ -1,10 +1,13 @@
 {
   "name": "edhelper",
   "private": true,
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "test": "npm run test -w @edhelper/engine && npm run test -w @edhelper/app",
     "dev": "npm run dev -w @edhelper/app",
     "dist": "npm run dist -w @edhelper/app"
-  }
+  },
+  "version": "1.0.12"
 }
