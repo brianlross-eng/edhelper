@@ -12,6 +12,24 @@ export interface BuilderOpts {
   softwareVersion: string;
 }
 
+/**
+ * EDDN's Developers.md makes both header fields a MUST: softwareName has to be
+ * unique and self-consistent so operators can trace bad messages back to a
+ * client, and softwareVersion has to be "pertinent" and incremented whenever
+ * message content changes — listeners may accept or filter data on it.
+ *
+ * The engine host is a plain-Node child with no access to app.getVersion(), so
+ * the main process passes the real version across the spawn boundary. The
+ * fallback is deliberately not a plausible release number: if `0.0.0-dev` ever
+ * shows up in EDDN data, that's an unpackaged dev build, not a shipped one.
+ */
+export function softwareTag(env: NodeJS.ProcessEnv = process.env): {
+  softwareName: string;
+  softwareVersion: string;
+} {
+  return { softwareName: 'EDHelper', softwareVersion: env.EDHELPER_VERSION || '0.0.0-dev' };
+}
+
 export interface TrackedPosition {
   StarSystem: string | null;
   StarPos: [number, number, number] | null;

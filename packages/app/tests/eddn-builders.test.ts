@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
-import { buildCommodityMessage, buildJournalMessage } from '../src/host/eddn/builders';
+import { buildCommodityMessage, buildJournalMessage, softwareTag } from '../src/host/eddn/builders';
 
 const ajv = new Ajv({ strict: false, allErrors: true });
 addFormats(ajv);
@@ -125,5 +125,24 @@ describe('buildJournalMessage', () => {
     const valid = validateJournal(env);
     expect(validateJournal.errors ?? []).toEqual([]);
     expect(valid).toBe(true);
+  });
+});
+
+// EDDN's Developers.md makes softwareName/softwareVersion a MUST: listeners may
+// accept or filter data on them, and the version must be incremented whenever
+// message content changes. The header used to hardcode '1.0.0', so twelve
+// releases all identified as the same build.
+describe('softwareTag', () => {
+  it('reports the version the main process passed across the spawn boundary', () => {
+    expect(softwareTag({ EDHELPER_VERSION: '1.0.13' })).toEqual({
+      softwareName: 'EDHelper', softwareVersion: '1.0.13',
+    });
+  });
+
+  it('falls back to an implausible version rather than a fake release number', () => {
+    // If this ever appears in EDDN data it is unambiguously an unpackaged
+    // dev build — a '1.0.0' fallback would be indistinguishable from a release.
+    expect(softwareTag({}).softwareVersion).toBe('0.0.0-dev');
+    expect(softwareTag({ EDHELPER_VERSION: '' }).softwareVersion).toBe('0.0.0-dev');
   });
 });

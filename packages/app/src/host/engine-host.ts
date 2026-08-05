@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { LineCodec, encodeLine, decodeLine } from './rpc.js';
 import { SpanshClient } from './spansh-client.js';
 import { fetchCommunityGoals } from './frontier.js';
-import { buildCommodityMessage, buildJournalMessage, type TrackedPosition } from './eddn/builders.js';
+import { buildCommodityMessage, buildJournalMessage, softwareTag, type TrackedPosition } from './eddn/builders.js';
 import { EddnUploader } from './eddn/uploader.js';
 import type {
   PlotColonisationRequest,
@@ -19,7 +19,7 @@ import type {
   SystemDistancesRequest,
 } from '../shared/ipc-types.js';
 
-const SOFTWARE = { softwareName: 'EDHelper', softwareVersion: '1.0.0' };
+const SOFTWARE = softwareTag();
 
 const spansh = new SpanshClient();
 const uploader = new EddnUploader();

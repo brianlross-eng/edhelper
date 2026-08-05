@@ -66,6 +66,7 @@ const engine = new EngineClient(
     isPackaged: app.isPackaged,
     execPath: process.execPath,
     mainDir: __dirname,
+    appVersion: app.getVersion(),
     edhelperNode: process.env.EDHELPER_NODE,
   })
 );
