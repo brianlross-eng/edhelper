@@ -9,5 +9,5 @@
     "dev": "npm run dev -w @edhelper/app",
     "dist": "npm run dist -w @edhelper/app"
   },
-  "version": "1.0.12"
+  "version": "1.0.13"
 }

@@ -8,6 +8,8 @@ export interface EngineSpawnInputs {
   execPath: string;
   /** __dirname of the main bundle (engine-host.js sits beside index.js in out/main). */
   mainDir: string;
+  /** app.getVersion() — reaches the host as EDHELPER_VERSION for the EDDN header. */
+  appVersion: string;
   /** process.env.EDHELPER_NODE — dev-only override for the Node binary. */
   edhelperNode?: string;
 }
@@ -22,8 +24,11 @@ export interface EngineSpawnInputs {
  */
 export function engineSpawnSpec(inputs: EngineSpawnInputs): EngineClientSpawnSpec {
   const hostPath = join(inputs.mainDir, 'engine-host.js');
+  // EDDN requires the real app version in every message header, and the host
+  // is a plain-Node child that can't reach Electron's app.getVersion().
+  const version = { EDHELPER_VERSION: inputs.appVersion };
   if (inputs.isPackaged) {
-    return { command: inputs.execPath, args: [hostPath], env: { ELECTRON_RUN_AS_NODE: '1' } };
+    return { command: inputs.execPath, args: [hostPath], env: { ELECTRON_RUN_AS_NODE: '1', ...version } };
   }
-  return { command: inputs.edhelperNode ?? 'node', args: [hostPath] };
+  return { command: inputs.edhelperNode ?? 'node', args: [hostPath], env: version };
 }
